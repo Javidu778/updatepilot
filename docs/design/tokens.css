@@ -1,0 +1,167 @@
+/*
+ * UpdatePilot design tokens
+ * Source of truth: docs/design-system.md
+ *
+ * Theme selection:
+ *   - No attribute on <html>: follows the system preference.
+ *   - <html data-theme="light"> or <html data-theme="dark">: manual override.
+ *
+ * Verify all text/background pairings with a contrast checker before release.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+
+  /* Spacing (4px base) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Layout */
+  --sidebar-width: 240px;
+  --content-max-width: 1280px;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Light theme (default) */
+  --color-bg: #ffffff;
+  --color-surface: #f8fafc;
+  --color-surface-raised: #ffffff;
+  --color-border: #e2e8f0;
+  --color-border-strong: #94a3b8;
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-on-primary: #ffffff;
+
+  --color-success: #15803d;
+  --color-success-bg: #dcfce7;
+  --color-warning: #b45309;
+  --color-warning-bg: #fef3c7;
+  --color-danger: #b91c1c;
+  --color-danger-bg: #fee2e2;
+  --color-info: #0369a1;
+  --color-info-bg: #e0f2fe;
+  --color-neutral: #475569;
+  --color-neutral-bg: #f1f5f9;
+
+  --shadow-floating: 0 8px 24px rgb(15 23 42 / 0.12);
+}
+
+/* Dark theme: system preference, unless the user forced light */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-bg: #0b1220;
+    --color-surface: #111827;
+    --color-surface-raised: #1f2937;
+    --color-border: #334155;
+    --color-border-strong: #64748b;
+    --color-text: #f1f5f9;
+    --color-text-muted: #94a3b8;
+    --color-primary: #60a5fa;
+    --color-primary-hover: #93c5fd;
+    --color-on-primary: #0b1220;
+
+    --color-success: #4ade80;
+    --color-success-bg: #052e16;
+    --color-warning: #fbbf24;
+    --color-warning-bg: #422006;
+    --color-danger: #f87171;
+    --color-danger-bg: #450a0a;
+    --color-info: #38bdf8;
+    --color-info-bg: #082f49;
+    --color-neutral: #94a3b8;
+    --color-neutral-bg: #1e293b;
+
+    --shadow-floating: 0 8px 24px rgb(0 0 0 / 0.5);
+  }
+}
+
+/* Dark theme: forced by the user */
+:root[data-theme='dark'] {
+  --color-bg: #0b1220;
+  --color-surface: #111827;
+  --color-surface-raised: #1f2937;
+  --color-border: #334155;
+  --color-border-strong: #64748b;
+  --color-text: #f1f5f9;
+  --color-text-muted: #94a3b8;
+  --color-primary: #60a5fa;
+  --color-primary-hover: #93c5fd;
+  --color-on-primary: #0b1220;
+
+  --color-success: #4ade80;
+  --color-success-bg: #052e16;
+  --color-warning: #fbbf24;
+  --color-warning-bg: #422006;
+  --color-danger: #f87171;
+  --color-danger-bg: #450a0a;
+  --color-info: #38bdf8;
+  --color-info-bg: #082f49;
+  --color-neutral: #94a3b8;
+  --color-neutral-bg: #1e293b;
+
+  --shadow-floating: 0 8px 24px rgb(0 0 0 / 0.5);
+}
+
+/* Base */
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+
+code,
+kbd,
+pre,
+.mono {
+  font-family: var(--font-mono);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Visible focus on every interactive element */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-primary);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
