@@ -1,0 +1,352 @@
+// UpdatePilot database schema
+// Design notes: docs/erd.md
+// Connection URL is configured in apps/api/prisma.config.ts (Prisma 7+).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum DeviceStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+enum MatchStatus {
+  MATCHED
+  UNMATCHED
+  UNSUPPORTED
+  UNKNOWN
+}
+
+enum UpdateStatus {
+  UP_TO_DATE
+  UPDATE_AVAILABLE
+  UNKNOWN
+}
+
+// Shared by scan jobs and update jobs. Scan jobs use a subset of these states.
+enum JobState {
+  QUEUED
+  RUNNING
+  VERIFYING
+  SUCCEEDED
+  FAILED
+  RESTART_REQUIRED
+  CANCELLED
+  INTERRUPTED
+  VERIFICATION_FAILED
+}
+
+enum VerificationResult {
+  NOT_RUN
+  VERIFIED
+  FAILED
+}
+
+enum ActorType {
+  USER
+  AGENT
+  SYSTEM
+}
+
+enum AuditEventType {
+  USER_REGISTERED
+  USER_LOGIN
+  DEVICE_PAIRING_CODE_CREATED
+  DEVICE_PAIRED
+  DEVICE_REVOKED
+  CREDENTIAL_ROTATED
+  SCAN_REQUESTED
+  SCAN_COMPLETED
+  SCAN_FAILED
+  UPDATE_PREVIEWED
+  UPDATE_CONFIRMED
+  UPDATE_STARTED
+  UPDATE_COMPLETED
+  UPDATE_FAILED
+  UPDATE_VERIFIED
+  UPDATE_VERIFICATION_FAILED
+  SETTINGS_CHANGED
+  EXPORT_CREATED
+  UNAUTHORIZED_ATTEMPT
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+  UNKNOWN
+}
+
+// ---------------------------------------------------------------------------
+// Users, devices, agent credentials
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  // Theme, scan preferences, notification and retention settings.
+  settings     Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  devices      Device[]
+  pairingCodes PairingCode[]
+  scanJobs     ScanJob[]
+  updateJobs   UpdateJob[]
+  auditEvents  AuditEvent[]
+}
+
+model Device {
+  id           String       @id @default(uuid()) @db.Uuid
+  ownerId      String       @db.Uuid
+  owner        User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name         String
+  osVersion    String?
+  agentVersion String?
+  status       DeviceStatus @default(PENDING)
+  lastSeenAt   DateTime?
+  // True for seed/demo devices. The UI must show a "Sample data" banner for these.
+  isSample     Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  credentials  AgentCredential[]
+  pairingCodes PairingCode[]
+  applications Application[]
+  scanJobs     ScanJob[]
+  updateJobs   UpdateJob[]
+  auditEvents  AuditEvent[]
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model AgentCredential {
+  id         String    @id @default(uuid()) @db.Uuid
+  deviceId   String    @db.Uuid
+  device     Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  // SHA-256 (or similar) hash of a long random token. The raw token is never stored.
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  rotatedAt  DateTime?
+  expiresAt  DateTime?
+  // A credential is active when revokedAt is null and it has not expired.
+  revokedAt  DateTime?
+
+  @@index([deviceId])
+}
+
+model PairingCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Hash of the one-time code. The raw code is shown to the user once.
+  codeHash  String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  // Set when the code is exchanged for a device.
+  deviceId  String?   @db.Uuid
+  device    Device?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Inventory
+// ---------------------------------------------------------------------------
+
+model Application {
+  id               String       @id @default(uuid()) @db.Uuid
+  deviceId         String       @db.Uuid
+  device           Device       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  // Stable identity within a device: the package ID when matched, otherwise a
+  // normalized "name|publisher|architecture" key. Makes scan upserts idempotent.
+  appKey           String
+  displayName      String
+  publisher        String?
+  installedVersion String
+  packageId        String?
+  source           String?
+  architecture     String?
+  matchStatus      MatchStatus  @default(UNKNOWN)
+  updateStatus     UpdateStatus @default(UNKNOWN)
+  availableVersion String?
+  firstSeenAt      DateTime     @default(now())
+  lastSeenAt       DateTime     @default(now())
+  // Set when an application is missing from the latest completed scan.
+  removedAt        DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  snapshots  ApplicationSnapshot[]
+  updateJobs UpdateJob[]
+
+  @@unique([deviceId, appKey])
+  @@index([deviceId, displayName])
+  @@index([deviceId, updateStatus])
+  @@index([packageId])
+}
+
+// ---------------------------------------------------------------------------
+// Scan jobs and historical snapshots
+// ---------------------------------------------------------------------------
+
+model ScanJob {
+  id             String    @id @default(uuid()) @db.Uuid
+  deviceId       String    @db.Uuid
+  device         Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  requestedById  String?   @db.Uuid
+  requestedBy    User?     @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+  state          JobState  @default(QUEUED)
+  // Client-supplied key so a retried request does not create a second job.
+  idempotencyKey String?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  appCount       Int?
+  errorSummary   String?
+  createdAt      DateTime  @default(now())
+
+  snapshots ApplicationSnapshot[]
+
+  @@unique([deviceId, idempotencyKey])
+  @@index([deviceId, createdAt])
+  @@index([state])
+}
+
+// Immutable copy of what a scan saw, so history is never overwritten.
+model ApplicationSnapshot {
+  id               String      @id @default(uuid()) @db.Uuid
+  scanJobId        String      @db.Uuid
+  scanJob          ScanJob     @relation(fields: [scanJobId], references: [id], onDelete: Cascade)
+  applicationId    String?     @db.Uuid
+  application      Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  appKey           String
+  displayName      String
+  publisher        String?
+  installedVersion String
+  packageId        String?
+  source           String?
+  matchStatus      MatchStatus
+  capturedAt       DateTime    @default(now())
+
+  @@unique([scanJobId, appKey])
+  @@index([applicationId, capturedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Release metadata (cached from external sources)
+// ---------------------------------------------------------------------------
+
+// Linked to applications logically through packageId, not a foreign key,
+// because metadata is cached per package and shared across devices.
+model ReleaseMetadata {
+  id           String    @id @default(uuid()) @db.Uuid
+  packageId    String
+  version      String
+  channel      String    @default("stable")
+  releaseDate  DateTime?
+  changelogUrl String?
+  officialUrl  String?
+  source       String
+  fetchedAt    DateTime  @default(now())
+  isSample     Boolean   @default(false)
+
+  @@unique([packageId, version, channel, source])
+  @@index([packageId])
+}
+
+// ---------------------------------------------------------------------------
+// Update jobs
+// ---------------------------------------------------------------------------
+
+model UpdateJob {
+  id              String             @id @default(uuid()) @db.Uuid
+  applicationId   String             @db.Uuid
+  application     Application        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  // Denormalized so ownership checks and agent job polling do not need a join.
+  deviceId        String             @db.Uuid
+  device          Device             @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  initiatedById   String?            @db.Uuid
+  initiatedBy     User?              @relation(fields: [initiatedById], references: [id], onDelete: SetNull)
+  packageId       String
+  fromVersion     String
+  targetVersion   String
+  state           JobState           @default(QUEUED)
+  idempotencyKey  String?
+  requestedAt     DateTime           @default(now())
+  confirmedAt     DateTime?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  exitCode        Int?
+  restartRequired Boolean            @default(false)
+  verification    VerificationResult @default(NOT_RUN)
+  verifiedVersion String?
+  errorSummary    String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@unique([deviceId, idempotencyKey])
+  @@index([applicationId, requestedAt])
+  @@index([deviceId, state])
+}
+
+// ---------------------------------------------------------------------------
+// Audit trail
+// ---------------------------------------------------------------------------
+
+// Never store secrets, tokens, passwords or file contents in metadata.
+model AuditEvent {
+  id          String         @id @default(uuid()) @db.Uuid
+  actorType   ActorType
+  actorUserId String?        @db.Uuid
+  actorUser   User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  deviceId    String?        @db.Uuid
+  device      Device?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  eventType   AuditEventType
+  targetType  String?
+  targetId    String?
+  metadata    Json           @default("{}")
+  createdAt   DateTime       @default(now())
+
+  @@index([deviceId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([eventType, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Security findings (only stored when package match and source are verified)
+// ---------------------------------------------------------------------------
+
+model SecurityFinding {
+  id             String   @id @default(uuid()) @db.Uuid
+  packageId      String
+  advisoryId     String
+  severity       Severity @default(UNKNOWN)
+  summary        String?
+  affectedRange  String
+  fixedVersion   String?
+  source         String
+  sourceUrl      String?
+  lastVerifiedAt DateTime
+  isSample       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@unique([packageId, advisoryId, source])
+  @@index([packageId])
+}

@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: updatepilot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-updatepilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-updatepilot}
+    ports:
+      # Bound to localhost only, so the database is not reachable from the network.
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - updatepilot-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-updatepilot} -d ${POSTGRES_DB:-updatepilot}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  updatepilot-db-data:
