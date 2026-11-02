@@ -25,18 +25,93 @@ type SampleApp = {
 };
 
 const SAMPLE_APPS: SampleApp[] = [
-  { displayName: '7-Zip', publisher: 'Igor Pavlov', installedVersion: '23.01', packageId: '7zip.7zip', source: 'winget', matchStatus: 'MATCHED', updateStatus: 'UPDATE_AVAILABLE', availableVersion: '24.08' },
-  { displayName: 'Git', publisher: 'The Git Development Community', installedVersion: '2.44.0', packageId: 'Git.Git', source: 'winget', matchStatus: 'MATCHED', updateStatus: 'UPDATE_AVAILABLE', availableVersion: '2.45.1' },
-  { displayName: 'Notepad++', publisher: 'Notepad++ Team', installedVersion: '8.7.5', packageId: 'Notepad++.Notepad++', source: 'winget', matchStatus: 'MATCHED', updateStatus: 'UP_TO_DATE', availableVersion: '8.7.5' },
-  { displayName: 'Visual Studio Code', publisher: 'Microsoft Corporation', installedVersion: '1.90.0', packageId: 'Microsoft.VisualStudioCode', source: 'winget', matchStatus: 'MATCHED', updateStatus: 'UPDATE_AVAILABLE', availableVersion: '1.91.1' },
-  { displayName: 'VLC media player', publisher: 'VideoLAN', installedVersion: '3.0.20', packageId: 'VideoLAN.VLC', source: 'winget', matchStatus: 'MATCHED', updateStatus: 'UP_TO_DATE', availableVersion: '3.0.20' },
-  { displayName: 'Mozilla Firefox', publisher: 'Mozilla', installedVersion: '127.0', packageId: 'Mozilla.Firefox', source: 'winget', matchStatus: 'MATCHED', updateStatus: 'UPDATE_AVAILABLE', availableVersion: '128.0' },
-  { displayName: 'Legacy Lab Tool', publisher: null, installedVersion: '1.0', packageId: null, source: null, matchStatus: 'UNMATCHED', updateStatus: 'UNKNOWN', availableVersion: null },
-  { displayName: 'Vendor Updater App', publisher: 'Example Vendor', installedVersion: '5.2.1', packageId: null, source: null, matchStatus: 'UNSUPPORTED', updateStatus: 'UNKNOWN', availableVersion: null },
+  {
+    displayName: '7-Zip',
+    publisher: 'Igor Pavlov',
+    installedVersion: '23.01',
+    packageId: '7zip.7zip',
+    source: 'winget',
+    matchStatus: 'MATCHED',
+    updateStatus: 'UPDATE_AVAILABLE',
+    availableVersion: '24.08',
+  },
+  {
+    displayName: 'Git',
+    publisher: 'The Git Development Community',
+    installedVersion: '2.44.0',
+    packageId: 'Git.Git',
+    source: 'winget',
+    matchStatus: 'MATCHED',
+    updateStatus: 'UPDATE_AVAILABLE',
+    availableVersion: '2.45.1',
+  },
+  {
+    displayName: 'Notepad++',
+    publisher: 'Notepad++ Team',
+    installedVersion: '8.7.5',
+    packageId: 'Notepad++.Notepad++',
+    source: 'winget',
+    matchStatus: 'MATCHED',
+    updateStatus: 'UP_TO_DATE',
+    availableVersion: '8.7.5',
+  },
+  {
+    displayName: 'Visual Studio Code',
+    publisher: 'Microsoft Corporation',
+    installedVersion: '1.90.0',
+    packageId: 'Microsoft.VisualStudioCode',
+    source: 'winget',
+    matchStatus: 'MATCHED',
+    updateStatus: 'UPDATE_AVAILABLE',
+    availableVersion: '1.91.1',
+  },
+  {
+    displayName: 'VLC media player',
+    publisher: 'VideoLAN',
+    installedVersion: '3.0.20',
+    packageId: 'VideoLAN.VLC',
+    source: 'winget',
+    matchStatus: 'MATCHED',
+    updateStatus: 'UP_TO_DATE',
+    availableVersion: '3.0.20',
+  },
+  {
+    displayName: 'Mozilla Firefox',
+    publisher: 'Mozilla',
+    installedVersion: '127.0',
+    packageId: 'Mozilla.Firefox',
+    source: 'winget',
+    matchStatus: 'MATCHED',
+    updateStatus: 'UPDATE_AVAILABLE',
+    availableVersion: '128.0',
+  },
+  {
+    displayName: 'Legacy Lab Tool',
+    publisher: null,
+    installedVersion: '1.0',
+    packageId: null,
+    source: null,
+    matchStatus: 'UNMATCHED',
+    updateStatus: 'UNKNOWN',
+    availableVersion: null,
+  },
+  {
+    displayName: 'Vendor Updater App',
+    publisher: 'Example Vendor',
+    installedVersion: '5.2.1',
+    packageId: null,
+    source: null,
+    matchStatus: 'UNSUPPORTED',
+    updateStatus: 'UNKNOWN',
+    availableVersion: null,
+  },
 ];
 
 function appKeyFor(app: SampleApp): string {
-  return app.packageId ?? `name:${app.displayName.toLowerCase()}|${(app.publisher ?? '').toLowerCase()}|x64`;
+  return (
+    app.packageId ??
+    `name:${app.displayName.toLowerCase()}|${(app.publisher ?? '').toLowerCase()}|x64`
+  );
 }
 
 async function main() {
@@ -88,7 +163,13 @@ async function main() {
   for (const sample of SAMPLE_APPS) {
     const appKey = appKeyFor(sample);
     const app = await prisma.application.create({
-      data: { deviceId: device.id, appKey, architecture: 'x64', ...sample, lastSeenAt: hoursAgo(1.9) },
+      data: {
+        deviceId: device.id,
+        appKey,
+        architecture: 'x64',
+        ...sample,
+        lastSeenAt: hoursAgo(1.9),
+      },
     });
     if (sample.packageId) appIdByPackage.set(sample.packageId, app.id);
     await prisma.applicationSnapshot.create({
@@ -149,16 +230,55 @@ async function main() {
 
   await prisma.auditEvent.createMany({
     data: [
-      { actorType: 'USER', actorUserId: user.id, deviceId: device.id, eventType: 'DEVICE_PAIRED', targetType: 'Device', targetId: device.id, metadata: { sample: true }, createdAt: hoursAgo(48) },
-      { actorType: 'AGENT', deviceId: device.id, eventType: 'SCAN_COMPLETED', targetType: 'ScanJob', targetId: scan.id, metadata: { sample: true, appCount: SAMPLE_APPS.length }, createdAt: hoursAgo(1.9) },
-      { actorType: 'USER', actorUserId: user.id, deviceId: device.id, eventType: 'UPDATE_FAILED', targetType: 'Application', targetId: git, metadata: { sample: true, exitCode: 1603 }, createdAt: hoursAgo(4.8) },
+      {
+        actorType: 'USER',
+        actorUserId: user.id,
+        deviceId: device.id,
+        eventType: 'DEVICE_PAIRED',
+        targetType: 'Device',
+        targetId: device.id,
+        metadata: { sample: true },
+        createdAt: hoursAgo(48),
+      },
+      {
+        actorType: 'AGENT',
+        deviceId: device.id,
+        eventType: 'SCAN_COMPLETED',
+        targetType: 'ScanJob',
+        targetId: scan.id,
+        metadata: { sample: true, appCount: SAMPLE_APPS.length },
+        createdAt: hoursAgo(1.9),
+      },
+      {
+        actorType: 'USER',
+        actorUserId: user.id,
+        deviceId: device.id,
+        eventType: 'UPDATE_FAILED',
+        targetType: 'Application',
+        targetId: git,
+        metadata: { sample: true, exitCode: 1603 },
+        createdAt: hoursAgo(4.8),
+      },
     ],
   });
 
   await prisma.releaseMetadata.createMany({
     data: [
-      { packageId: '7zip.7zip', version: '24.08', releaseDate: new Date('2024-08-11'), officialUrl: 'https://www.7-zip.org/', changelogUrl: 'https://www.7-zip.org/history.txt', source: 'sample', isSample: true },
-      { packageId: 'Git.Git', version: '2.45.1', source: 'sample', isSample: true },
+      {
+        packageId: '7zip.7zip',
+        version: '24.08',
+        releaseDate: new Date('2024-08-11'),
+        officialUrl: 'https://www.7-zip.org/',
+        changelogUrl: 'https://www.7-zip.org/history.txt',
+        source: 'sample',
+        isSample: true,
+      },
+      {
+        packageId: 'Git.Git',
+        version: '2.45.1',
+        source: 'sample',
+        isSample: true,
+      },
     ],
   });
 

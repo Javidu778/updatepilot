@@ -1,0 +1,1160 @@
+openapi: 3.0.3
+info:
+  title: UpdatePilot API
+  version: 0.1.0
+  description: |
+    Contracts for the UpdatePilot web client and Windows agent.
+
+    These are PROPOSED contracts, not working endpoints yet. The Zod schemas in
+    `packages/shared/src/api.ts` are the runtime source of truth; this file documents the same shapes.
+
+    **Authentication**
+    - Web client: session cookie (`up_session`, httpOnly, Secure, SameSite). State-changing requests also
+      need the `X-CSRF-Token` header.
+    - Windows agent: `Authorization: Bearer <agent token>` on `/agent/*` routes only.
+
+    **Conventions**
+    - Every state-changing route requires authentication, authorization (ownership), schema validation,
+      job-state checks and returns the common error format.
+    - Resources owned by someone else return `404`, not `403`, so IDs cannot be probed.
+    - In `/updates/{id}/...`, `{id}` is the **application id**.
+    - Lists use `page` and `pageSize` (max 100). Sort fields are whitelisted.
+
+    **Core endpoints** are the 13 from the project proposal. **Additional endpoints** (auth, pairing codes,
+    revoke, agent channel) are required by the design and need team confirmation.
+servers:
+  - url: http://localhost:4000
+    description: Local development
+tags:
+  - name: Auth
+  - name: Dashboard
+  - name: Devices
+  - name: Scans
+  - name: Applications
+  - name: Updates
+  - name: Jobs
+  - name: History
+  - name: Security
+  - name: Agent
+security:
+  - cookieAuth: []
+
+paths:
+  # ------------------------------------------------------------------ Additional: auth
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Create an account (additional endpoint)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Account created and signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in (additional endpoint)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Signed in. Sets the session cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Sign out (additional endpoint)
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204': { description: Signed out }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user (additional endpoint)
+      responses:
+        '200':
+          description: The signed-in user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ------------------------------------------------------------------ Core
+  /api/v1/dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Overview statistics
+      responses:
+        '200':
+          description: Overview data
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/devices:
+    get:
+      tags: [Devices]
+      summary: List paired devices
+      responses:
+        '200':
+          description: Devices owned by the current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Device' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/devices/pairing-codes:
+    post:
+      tags: [Devices]
+      summary: Create a one-time pairing code (additional endpoint)
+      description: The code is shown once, expires after a short time and is stored only as a hash.
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '201':
+          description: Pairing code
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PairingCodeResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/v1/devices/pair:
+    post:
+      tags: [Devices, Agent]
+      summary: Secure agent pairing
+      description: |
+        Called by the agent with a one-time code. Not covered by the session cookie.
+        The code is single-use and rate limited. On success the server creates the device and returns
+        the agent token once; only a hash of it is stored.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PairRequest' }
+      responses:
+        '201':
+          description: Device paired
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PairResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404':
+          description: Code unknown, expired or already used (the same response for all three)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/v1/devices/{id}/revoke:
+    post:
+      tags: [Devices]
+      summary: Revoke a device and its credentials (additional endpoint)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Device revoked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Device' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/devices/{id}/scans:
+    post:
+      tags: [Scans]
+      summary: Start a scan job
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Scan job queued (or the existing job for this Idempotency-Key)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/v1/scans/{id}:
+    get:
+      tags: [Scans]
+      summary: Get scan progress
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: The scan job
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/applications:
+    get:
+      tags: [Applications]
+      summary: Search, filter, sort and paginate the inventory
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: q
+          in: query
+          description: Matches display name or publisher
+          schema: { type: string, maxLength: 100 }
+        - name: updateStatus
+          in: query
+          schema: { $ref: '#/components/schemas/UpdateStatus' }
+        - name: matchStatus
+          in: query
+          schema: { $ref: '#/components/schemas/MatchStatus' }
+        - name: source
+          in: query
+          schema: { type: string, maxLength: 64 }
+        - name: deviceId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: includeRemoved
+          in: query
+          schema: { type: string, enum: ['true', 'false'], default: 'false' }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [displayName, publisher, installedVersion, updateStatus, lastSeenAt]
+            default: displayName
+        - name: order
+          in: query
+          schema: { type: string, enum: [asc, desc], default: asc }
+      responses:
+        '200':
+          description: A page of applications
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApplicationsPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/applications/{id}:
+    get:
+      tags: [Applications]
+      summary: Application details
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: The application with release information and update history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApplicationDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/updates:
+    get:
+      tags: [Updates]
+      summary: Available updates
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: deviceId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: A page of update candidates
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdatesPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/updates/{id}/preview:
+    post:
+      tags: [Updates]
+      summary: Validate an update proposal
+      description: |
+        `{id}` is the application id. Resolves package identity, publisher, architecture, source and target
+        version, and returns a signed, short-lived, single-use `previewToken` bound to the user, application,
+        package and target version. Changes nothing on the device.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: The proposed update
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdatePreview' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /api/v1/updates/{id}/execute:
+    post:
+      tags: [Updates]
+      summary: Execute a confirmed update
+      description: |
+        `{id}` is the application id. Requires the `previewToken` from the preview step, which the user
+        confirmed in the UI. The server re-checks ownership, token signature and expiry, that the application
+        is still at `fromVersion`, and that the target has not changed, then queues one update job.
+        The token's id doubles as the idempotency key, so a repeated request returns the same job and a token
+        can never start two updates.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExecuteUpdateRequest' }
+      responses:
+        '202':
+          description: Update job queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/v1/jobs/{id}:
+    get:
+      tags: [Jobs]
+      summary: Job progress and result
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: The scan or update job
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/history:
+    get:
+      tags: [History]
+      summary: Scan, update and audit history
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: type
+          in: query
+          schema: { type: string, enum: [scan, update, audit], default: update }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: outcome
+          in: query
+          schema: { $ref: '#/components/schemas/JobState' }
+        - name: deviceId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: A page of history items
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HistoryPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/security/findings:
+    get:
+      tags: [Security]
+      summary: Verified security findings
+      description: Only findings with a verified package match and a known source are returned.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: packageId
+          in: query
+          schema: { type: string, maxLength: 128 }
+        - name: severity
+          in: query
+          schema: { $ref: '#/components/schemas/Severity' }
+        - name: deviceId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: A page of findings with source and freshness information
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SecurityFindingsPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ------------------------------------------------------------------ Additional: agent channel
+  /api/v1/agent/jobs/next:
+    get:
+      tags: [Agent]
+      summary: Poll for the next approved job (also acts as a heartbeat)
+      description: |
+        Updates the device's `lastSeenAt`. If a QUEUED job exists for this device, the server atomically
+        moves it to RUNNING (compare-and-set) and returns it. The payload contains only allowlisted fields.
+      security:
+        - agentBearer: []
+      responses:
+        '200':
+          description: 'The next job, or job set to null'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentNextJobResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/agent/jobs/{id}/progress:
+    post:
+      tags: [Agent]
+      summary: Report job progress
+      security:
+        - agentBearer: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentProgressRequest' }
+      responses:
+        '200':
+          description: Progress recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/agent/scans/{id}/results:
+    post:
+      tags: [Agent]
+      summary: Submit scan results
+      security:
+        - agentBearer: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScanResultsRequest' }
+      responses:
+        '200':
+          description: Results stored; the job is SUCCEEDED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/agent/updates/{id}/result:
+    post:
+      tags: [Agent]
+      summary: Submit the result of an update, including the post-update rescan
+      description: |
+        `{id}` is the update job id. The server decides the final state from the exit code, restart flag and
+        the version found by the agent's rescan. SUCCEEDED is only set when the rescan shows the target version.
+      security:
+        - agentBearer: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateResultRequest' }
+      responses:
+        '200':
+          description: Result recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: up_session
+    agentBearer:
+      type: http
+      scheme: bearer
+      description: Agent token issued once at pairing. Only a hash is stored on the server.
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: Anti-CSRF token for cookie-authenticated state-changing requests.
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: A UUID. Repeating the request with the same key returns the original job.
+      schema: { type: string, format: uuid }
+
+  responses:
+    ValidationError:
+      description: Request failed schema validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Missing, invalid or expired credentials (UNAUTHENTICATED)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: CSRF check failed or device revoked (FORBIDDEN)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Not found, or owned by another user (NOT_FOUND)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Invalid job state, an active job already exists, or an idempotency conflict (INVALID_STATE, IDEMPOTENCY_CONFLICT, DEVICE_REVOKED)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unprocessable:
+      description: Unsupported package, expired preview, or the update changed since the preview (UNSUPPORTED_PACKAGE, UPDATE_CHANGED)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    RateLimited:
+      description: Too many requests (RATE_LIMITED). Honor the Retry-After header.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    # ---------------- enums
+    DeviceStatus: { type: string, enum: [PENDING, ACTIVE, REVOKED] }
+    ConnectionState: { type: string, enum: [connected, stale, disconnected, pending, revoked] }
+    MatchStatus: { type: string, enum: [MATCHED, UNMATCHED, UNSUPPORTED, UNKNOWN] }
+    UpdateStatus: { type: string, enum: [UP_TO_DATE, UPDATE_AVAILABLE, UNKNOWN] }
+    JobState:
+      type: string
+      enum:
+        [
+          QUEUED,
+          RUNNING,
+          VERIFYING,
+          SUCCEEDED,
+          FAILED,
+          RESTART_REQUIRED,
+          CANCELLED,
+          INTERRUPTED,
+          VERIFICATION_FAILED,
+        ]
+    VerificationResult: { type: string, enum: [NOT_RUN, VERIFIED, FAILED] }
+    Severity: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL, UNKNOWN] }
+    ActorType: { type: string, enum: [USER, AGENT, SYSTEM] }
+    AuditEventType:
+      type: string
+      enum:
+        - USER_REGISTERED
+        - USER_LOGIN
+        - DEVICE_PAIRING_CODE_CREATED
+        - DEVICE_PAIRED
+        - DEVICE_REVOKED
+        - CREDENTIAL_ROTATED
+        - SCAN_REQUESTED
+        - SCAN_COMPLETED
+        - SCAN_FAILED
+        - UPDATE_PREVIEWED
+        - UPDATE_CONFIRMED
+        - UPDATE_STARTED
+        - UPDATE_COMPLETED
+        - UPDATE_FAILED
+        - UPDATE_VERIFIED
+        - UPDATE_VERIFICATION_FAILED
+        - SETTINGS_CHANGED
+        - EXPORT_CREATED
+        - UNAUTHORIZED_ATTEMPT
+
+    # ---------------- errors
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_ERROR
+                - UNAUTHENTICATED
+                - FORBIDDEN
+                - NOT_FOUND
+                - INVALID_STATE
+                - IDEMPOTENCY_CONFLICT
+                - DEVICE_REVOKED
+                - UNSUPPORTED_PACKAGE
+                - UPDATE_CHANGED
+                - RATE_LIMITED
+                - INTERNAL_ERROR
+            message: { type: string }
+            requestId: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                required: [path, message]
+                properties:
+                  path: { type: string }
+                  message: { type: string }
+
+    # ---------------- auth
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 12, maxLength: 128 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    User:
+      type: object
+      required: [id, email, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        createdAt: { type: string, format: date-time }
+
+    # ---------------- devices
+    Device:
+      type: object
+      required: [id, name, status, connection, osVersion, agentVersion, lastSeenAt, isSample]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { $ref: '#/components/schemas/DeviceStatus' }
+        connection: { $ref: '#/components/schemas/ConnectionState' }
+        osVersion: { type: string, nullable: true }
+        agentVersion: { type: string, nullable: true }
+        lastSeenAt: { type: string, format: date-time, nullable: true }
+        isSample:
+          type: boolean
+          description: True for demo data. The UI must show a "Sample data" banner.
+    PairingCodeResponse:
+      type: object
+      required: [code, expiresAt]
+      properties:
+        code: { type: string, example: 'ABCD-1234' }
+        expiresAt: { type: string, format: date-time }
+    PairRequest:
+      type: object
+      additionalProperties: false
+      required: [pairingCode, deviceName]
+      properties:
+        pairingCode: { type: string, pattern: '^[A-Z0-9]{4}-[A-Z0-9]{4}$' }
+        deviceName: { type: string, minLength: 1, maxLength: 100 }
+        osVersion: { type: string, maxLength: 100 }
+        agentVersion: { type: string, maxLength: 32 }
+    PairResponse:
+      type: object
+      required: [deviceId, agentToken, pollIntervalSeconds]
+      properties:
+        deviceId: { type: string, format: uuid }
+        agentToken:
+          type: string
+          description: Shown once. Store it protected on the device; the server keeps only a hash.
+        pollIntervalSeconds: { type: integer, minimum: 1 }
+
+    # ---------------- jobs
+    Job:
+      type: object
+      required:
+        [
+          id,
+          kind,
+          state,
+          deviceId,
+          applicationId,
+          packageId,
+          fromVersion,
+          targetVersion,
+          requestedAt,
+          startedAt,
+          finishedAt,
+          exitCode,
+          restartRequired,
+          verification,
+          errorSummary,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [scan, update] }
+        state: { $ref: '#/components/schemas/JobState' }
+        deviceId: { type: string, format: uuid }
+        applicationId: { type: string, format: uuid, nullable: true }
+        packageId: { type: string, nullable: true }
+        fromVersion: { type: string, nullable: true }
+        targetVersion: { type: string, nullable: true }
+        requestedAt: { type: string, format: date-time }
+        startedAt: { type: string, format: date-time, nullable: true }
+        finishedAt: { type: string, format: date-time, nullable: true }
+        exitCode: { type: integer, nullable: true }
+        restartRequired: { type: boolean }
+        verification: { $ref: '#/components/schemas/VerificationResult' }
+        errorSummary: { type: string, nullable: true }
+
+    # ---------------- applications
+    Application:
+      type: object
+      required:
+        [
+          id,
+          deviceId,
+          displayName,
+          publisher,
+          installedVersion,
+          availableVersion,
+          packageId,
+          source,
+          architecture,
+          matchStatus,
+          updateStatus,
+          lastSeenAt,
+          removedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        deviceId: { type: string, format: uuid }
+        displayName: { type: string }
+        publisher: { type: string, nullable: true }
+        installedVersion: { type: string }
+        availableVersion: { type: string, nullable: true }
+        packageId: { type: string, nullable: true }
+        source: { type: string, nullable: true }
+        architecture: { type: string, nullable: true }
+        matchStatus: { $ref: '#/components/schemas/MatchStatus' }
+        updateStatus: { $ref: '#/components/schemas/UpdateStatus' }
+        lastSeenAt: { type: string, format: date-time }
+        removedAt: { type: string, format: date-time, nullable: true }
+    ApplicationsPage:
+      allOf:
+        - $ref: '#/components/schemas/PageEnvelope'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/Application' }
+    ReleaseInfo:
+      type: object
+      required: [version, releaseDate, changelogUrl, officialUrl, source, fetchedAt]
+      properties:
+        version: { type: string }
+        releaseDate: { type: string, format: date-time, nullable: true }
+        changelogUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: https only
+        officialUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: https only
+        source: { type: string }
+        fetchedAt: { type: string, format: date-time }
+    ApplicationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Application'
+        - type: object
+          required: [isSample, release, updateHistory]
+          properties:
+            isSample: { type: boolean }
+            release:
+              allOf:
+                - $ref: '#/components/schemas/ReleaseInfo'
+              nullable: true
+            updateHistory:
+              type: array
+              items: { $ref: '#/components/schemas/Job' }
+
+    # ---------------- updates
+    UpdateCandidate:
+      type: object
+      required:
+        [
+          applicationId,
+          deviceId,
+          displayName,
+          publisher,
+          packageId,
+          source,
+          installedVersion,
+          availableVersion,
+          notes,
+          activeJobId,
+        ]
+      properties:
+        applicationId: { type: string, format: uuid }
+        deviceId: { type: string, format: uuid }
+        displayName: { type: string }
+        publisher: { type: string, nullable: true }
+        packageId: { type: string }
+        source: { type: string }
+        installedVersion: { type: string }
+        availableVersion: { type: string }
+        notes:
+          type: array
+          items: { type: string }
+        activeJobId: { type: string, format: uuid, nullable: true }
+    UpdatesPage:
+      allOf:
+        - $ref: '#/components/schemas/PageEnvelope'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/UpdateCandidate' }
+    UpdatePreview:
+      type: object
+      required:
+        [
+          applicationId,
+          deviceId,
+          displayName,
+          publisher,
+          packageId,
+          source,
+          architecture,
+          fromVersion,
+          targetVersion,
+          mayRequireElevation,
+          mayRequireRestart,
+          notes,
+          previewToken,
+          expiresAt,
+        ]
+      properties:
+        applicationId: { type: string, format: uuid }
+        deviceId: { type: string, format: uuid }
+        displayName: { type: string }
+        publisher: { type: string, nullable: true }
+        packageId: { type: string }
+        source: { type: string }
+        architecture: { type: string, nullable: true }
+        fromVersion: { type: string }
+        targetVersion: { type: string }
+        mayRequireElevation: { type: boolean }
+        mayRequireRestart: { type: boolean }
+        notes:
+          type: array
+          items: { type: string }
+        previewToken:
+          type: string
+          description: Signed, short-lived and single-use.
+        expiresAt: { type: string, format: date-time }
+    ExecuteUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [previewToken]
+      properties:
+        previewToken: { type: string, minLength: 20, maxLength: 2048 }
+
+    # ---------------- dashboard
+    Dashboard:
+      type: object
+      required: [isSample, counts, lastScanAt, agent, recentActivity]
+      properties:
+        isSample: { type: boolean }
+        counts:
+          type: object
+          required: [applications, updatesAvailable, unmatched, unsupported]
+          properties:
+            applications: { type: integer }
+            updatesAvailable: { type: integer }
+            unmatched: { type: integer }
+            unsupported: { type: integer }
+        lastScanAt: { type: string, format: date-time, nullable: true }
+        agent:
+          type: object
+          required: [connection, deviceId, lastSeenAt]
+          properties:
+            connection: { $ref: '#/components/schemas/ConnectionState' }
+            deviceId: { type: string, format: uuid, nullable: true }
+            lastSeenAt: { type: string, format: date-time, nullable: true }
+        recentActivity:
+          type: array
+          items:
+            type: object
+            required: [id, timestamp, eventType, summary]
+            properties:
+              id: { type: string, format: uuid }
+              timestamp: { type: string, format: date-time }
+              eventType: { $ref: '#/components/schemas/AuditEventType' }
+              summary: { type: string }
+
+    # ---------------- history
+    HistoryItem:
+      type: object
+      required: [id, type, timestamp, deviceId, outcome, actorType, summary, details]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [scan, update, audit] }
+        timestamp: { type: string, format: date-time }
+        deviceId: { type: string, format: uuid, nullable: true }
+        outcome:
+          allOf:
+            - $ref: '#/components/schemas/JobState'
+          nullable: true
+        actorType:
+          allOf:
+            - $ref: '#/components/schemas/ActorType'
+          nullable: true
+        summary: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+          description: Safe diagnostic metadata only. Never secrets, tokens or file contents.
+    HistoryPage:
+      allOf:
+        - $ref: '#/components/schemas/PageEnvelope'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/HistoryItem' }
+
+    # ---------------- security
+    SecurityFinding:
+      type: object
+      required:
+        [
+          id,
+          packageId,
+          advisoryId,
+          severity,
+          summary,
+          affectedRange,
+          fixedVersion,
+          source,
+          sourceUrl,
+          lastVerifiedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        packageId: { type: string }
+        advisoryId: { type: string }
+        severity: { $ref: '#/components/schemas/Severity' }
+        summary: { type: string, nullable: true }
+        affectedRange: { type: string }
+        fixedVersion: { type: string, nullable: true }
+        source: { type: string }
+        sourceUrl: { type: string, format: uri, nullable: true }
+        lastVerifiedAt: { type: string, format: date-time }
+    SecurityFindingsPage:
+      allOf:
+        - $ref: '#/components/schemas/PageEnvelope'
+        - type: object
+          required: [data, meta]
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/SecurityFinding' }
+            meta:
+              type: object
+              required: [checkedAt, source, limitations, isSample]
+              properties:
+                checkedAt: { type: string, format: date-time, nullable: true }
+                source: { type: string }
+                limitations: { type: string }
+                isSample: { type: boolean }
+
+    # ---------------- agent channel
+    AgentJob:
+      description: The only two operations the agent will ever perform.
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [kind, jobId]
+          properties:
+            kind: { type: string, enum: [scan] }
+            jobId: { type: string, format: uuid }
+        - type: object
+          additionalProperties: false
+          required: [kind, jobId, packageId, targetVersion, source]
+          properties:
+            kind: { type: string, enum: [upgrade] }
+            jobId: { type: string, format: uuid }
+            packageId:
+              type: string
+              pattern: '^[A-Za-z0-9][A-Za-z0-9.+_-]{1,127}$'
+            targetVersion:
+              type: string
+              pattern: '^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$'
+            source: { type: string, enum: [winget] }
+    AgentNextJobResponse:
+      type: object
+      required: [job, pollIntervalSeconds, serverTime]
+      properties:
+        job:
+          allOf:
+            - $ref: '#/components/schemas/AgentJob'
+          nullable: true
+        pollIntervalSeconds: { type: integer, minimum: 1 }
+        serverTime: { type: string, format: date-time }
+    AgentProgressRequest:
+      type: object
+      additionalProperties: false
+      required: [state]
+      properties:
+        state: { type: string, enum: [RUNNING, VERIFYING] }
+    ScannedApplication:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          displayName,
+          publisher,
+          installedVersion,
+          availableVersion,
+          packageId,
+          source,
+          architecture,
+        ]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 256 }
+        publisher: { type: string, maxLength: 256, nullable: true }
+        installedVersion: { type: string, minLength: 1, maxLength: 128 }
+        availableVersion: { type: string, minLength: 1, maxLength: 128, nullable: true }
+        packageId:
+          type: string
+          nullable: true
+          pattern: '^[A-Za-z0-9][A-Za-z0-9.+_-]{1,127}$'
+        source: { type: string, maxLength: 64, nullable: true }
+        architecture: { type: string, maxLength: 32, nullable: true }
+    ScanResultsRequest:
+      type: object
+      additionalProperties: false
+      required: [startedAt, finishedAt, applications]
+      properties:
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+        applications:
+          type: array
+          maxItems: 5000
+          items: { $ref: '#/components/schemas/ScannedApplication' }
+    UpdateResultRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [startedAt, finishedAt, exitCode, restartRequired, installedVersionAfter, errorSummary]
+      properties:
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+        exitCode: { type: integer }
+        restartRequired: { type: boolean }
+        installedVersionAfter:
+          type: string
+          minLength: 1
+          maxLength: 128
+          nullable: true
+          description: Version found by the agent's rescan after the update.
+        errorSummary:
+          type: string
+          maxLength: 1000
+          nullable: true
+          description: Untrusted text. The UI must escape it.
+
+    # ---------------- shared envelope
+    PageEnvelope:
+      type: object
+      required: [page, pageSize, total, totalPages]
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }
+        totalPages: { type: integer }

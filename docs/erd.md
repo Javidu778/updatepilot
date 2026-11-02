@@ -107,62 +107,62 @@ erDiagram
 
 ## 2. Tables
 
-| Table | Purpose | Notes |
-|---|---|---|
-| `User` | Account identity | Password stored only as a hash. `settings` holds theme, scan, notification and retention preferences |
-| `Device` | A paired Windows computer | Owned by one user. `isSample` marks demo data |
-| `AgentCredential` | Credential an agent uses to call the API | Only a hash is stored. Revoked or rotated, never edited in place |
-| `PairingCode` | One-time pairing code | Hashed, short-lived, single use |
-| `Application` | Current inventory entry for a device | One row per app per device, identified by `appKey` |
-| `ScanJob` | A scan request and its outcome | State, timestamps, error summary, idempotency key |
-| `ApplicationSnapshot` | What a scan saw | Immutable history, so evidence is never overwritten |
-| `ReleaseMetadata` | Cached release info per package version | Source and fetched time recorded |
-| `UpdateJob` | A confirmed update and its outcome | Exit code, restart flag, verification result |
-| `AuditEvent` | Audit trail | Actor, device, event type, target, safe metadata |
-| `SecurityFinding` | Verified advisories | Stored only when package match and source are reliable |
+| Table                 | Purpose                                  | Notes                                                                                                |
+| --------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `User`                | Account identity                         | Password stored only as a hash. `settings` holds theme, scan, notification and retention preferences |
+| `Device`              | A paired Windows computer                | Owned by one user. `isSample` marks demo data                                                        |
+| `AgentCredential`     | Credential an agent uses to call the API | Only a hash is stored. Revoked or rotated, never edited in place                                     |
+| `PairingCode`         | One-time pairing code                    | Hashed, short-lived, single use                                                                      |
+| `Application`         | Current inventory entry for a device     | One row per app per device, identified by `appKey`                                                   |
+| `ScanJob`             | A scan request and its outcome           | State, timestamps, error summary, idempotency key                                                    |
+| `ApplicationSnapshot` | What a scan saw                          | Immutable history, so evidence is never overwritten                                                  |
+| `ReleaseMetadata`     | Cached release info per package version  | Source and fetched time recorded                                                                     |
+| `UpdateJob`           | A confirmed update and its outcome       | Exit code, restart flag, verification result                                                         |
+| `AuditEvent`          | Audit trail                              | Actor, device, event type, target, safe metadata                                                     |
+| `SecurityFinding`     | Verified advisories                      | Stored only when package match and source are reliable                                               |
 
 ## 3. Constraints
 
-| Constraint | Why |
-|---|---|
-| `User.email` unique | One account per email |
-| `AgentCredential.tokenHash` unique | Credentials resolve to exactly one device |
-| `PairingCode.codeHash` unique | Codes cannot collide |
-| `Application (deviceId, appKey)` unique | Scan upserts are idempotent; no duplicate apps per device |
-| `ApplicationSnapshot (scanJobId, appKey)` unique | A scan records each app once |
-| `ScanJob (deviceId, idempotencyKey)` unique | A retried request does not create a second scan |
-| `UpdateJob (deviceId, idempotencyKey)` unique | A retried or replayed confirm does not create a second update |
-| `ReleaseMetadata (packageId, version, channel, source)` unique | One cached row per release per source |
-| `SecurityFinding (packageId, advisoryId, source)` unique | No duplicate findings |
-| Foreign keys everywhere | Orphan rows are impossible |
+| Constraint                                                     | Why                                                           |
+| -------------------------------------------------------------- | ------------------------------------------------------------- |
+| `User.email` unique                                            | One account per email                                         |
+| `AgentCredential.tokenHash` unique                             | Credentials resolve to exactly one device                     |
+| `PairingCode.codeHash` unique                                  | Codes cannot collide                                          |
+| `Application (deviceId, appKey)` unique                        | Scan upserts are idempotent; no duplicate apps per device     |
+| `ApplicationSnapshot (scanJobId, appKey)` unique               | A scan records each app once                                  |
+| `ScanJob (deviceId, idempotencyKey)` unique                    | A retried request does not create a second scan               |
+| `UpdateJob (deviceId, idempotencyKey)` unique                  | A retried or replayed confirm does not create a second update |
+| `ReleaseMetadata (packageId, version, channel, source)` unique | One cached row per release per source                         |
+| `SecurityFinding (packageId, advisoryId, source)` unique       | No duplicate findings                                         |
+| Foreign keys everywhere                                        | Orphan rows are impossible                                    |
 
 Postgres treats NULL values as distinct in unique constraints, so rows without an idempotency key do not conflict.
 
 ## 4. Delete behavior
 
-| Parent deleted | Children |
-|---|---|
-| `User` | Devices, pairing codes (cascade). Jobs keep their rows with the user set to null |
-| `Device` | Credentials, applications, scans, snapshots, update jobs (cascade) |
-| `Application` | Update jobs (cascade). Snapshots keep their rows with the application set to null |
-| `User` or `Device` (audit events) | Audit rows are kept; the actor or device is set to null |
+| Parent deleted                    | Children                                                                          |
+| --------------------------------- | --------------------------------------------------------------------------------- |
+| `User`                            | Devices, pairing codes (cascade). Jobs keep their rows with the user set to null  |
+| `Device`                          | Credentials, applications, scans, snapshots, update jobs (cascade)                |
+| `Application`                     | Update jobs (cascade). Snapshots keep their rows with the application set to null |
+| `User` or `Device` (audit events) | Audit rows are kept; the actor or device is set to null                           |
 
 This gives a working "delete my data" path while keeping an audit trail that does not point at deleted people or devices.
 
 ## 5. Indexes
 
-| Index | Used for |
-|---|---|
-| `Device (ownerId)` | Listing a user's devices and every ownership check |
-| `Application (deviceId, displayName)` | Inventory search and name sorting |
-| `Application (deviceId, updateStatus)` | "Updates available" counts and filters |
-| `Application (packageId)` | Joining to release metadata and findings |
-| `ScanJob (deviceId, createdAt)` | Scan history, latest scan |
-| `ScanJob (state)`, `UpdateJob (deviceId, state)` | Finding queued and running jobs for the agent |
-| `UpdateJob (applicationId, requestedAt)` | Per-application update history |
-| `ApplicationSnapshot (applicationId, capturedAt)` | Version history of one application |
-| `AuditEvent (deviceId, createdAt)`, `(actorUserId, createdAt)`, `(eventType, createdAt)` | History page filters |
-| `ReleaseMetadata (packageId)`, `SecurityFinding (packageId)` | Lookups by package |
+| Index                                                                                    | Used for                                           |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `Device (ownerId)`                                                                       | Listing a user's devices and every ownership check |
+| `Application (deviceId, displayName)`                                                    | Inventory search and name sorting                  |
+| `Application (deviceId, updateStatus)`                                                   | "Updates available" counts and filters             |
+| `Application (packageId)`                                                                | Joining to release metadata and findings           |
+| `ScanJob (deviceId, createdAt)`                                                          | Scan history, latest scan                          |
+| `ScanJob (state)`, `UpdateJob (deviceId, state)`                                         | Finding queued and running jobs for the agent      |
+| `UpdateJob (applicationId, requestedAt)`                                                 | Per-application update history                     |
+| `ApplicationSnapshot (applicationId, capturedAt)`                                        | Version history of one application                 |
+| `AuditEvent (deviceId, createdAt)`, `(actorUserId, createdAt)`, `(eventType, createdAt)` | History page filters                               |
+| `ReleaseMetadata (packageId)`, `SecurityFinding (packageId)`                             | Lookups by package                                 |
 
 Review these with real query plans (`EXPLAIN`) once the inventory API exists. Add or drop indexes based on measured queries, not guesses.
 
