@@ -22,7 +22,18 @@ export function createDocsRouter(openapiPath: string = DEFAULT_OPENAPI_PATH): Ro
   const spec = YAML.parse(readFileSync(openapiPath, 'utf8')) as Record<string, unknown>;
 
   const router = Router();
-  router.use(helmet({ contentSecurityPolicy: false }));
+  router.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:'],
+        },
+      },
+    }),
+  );
   router.get('/openapi.json', (_req, res) => {
     res.json(spec);
   });
