@@ -5,7 +5,7 @@ Related: `docs/design-system.md`, `docs/scope.md`
 
 These are structural wireframes. They define layout, content and behavior, not final visuals. Colors, type and spacing come from the design system.
 
-Legend: `[Button]`  `(o)` status dot  `[v]` dropdown  `[ ]` checkbox  `...` more content
+Legend: `[Button]` `(o)` status dot `[v]` dropdown `[ ]` checkbox `...` more content
 
 ## 1. App shell (all pages)
 
@@ -26,6 +26,7 @@ Legend: `[Button]`  `(o)` status dot  `[v]` dropdown  `[ ]` checkbox  `...` more
 ```
 
 Behavior:
+
 - Sidebar: 6 items, current page highlighted and marked with `aria-current="page"`. The Updates item shows a count badge when updates are available.
 - Top bar: global search (jumps to Applications with the query), agent connection indicator (always visible), theme toggle.
 - Skip link "Skip to main content" is the first focusable element.
@@ -60,6 +61,7 @@ Behavior:
 ```
 
 Behavior:
+
 - Every card and next-action link goes to the filtered page it describes.
 - "Run scan" is disabled with an explanation when the agent is disconnected.
 - A scan in progress replaces the button with a progress indicator and "Scan running...".
@@ -87,6 +89,7 @@ Behavior:
 ```
 
 Behavior:
+
 - Search, filters, sort and pagination all compose, and the state is kept in the URL query string so refresh and back/forward work.
 - Changing a filter resets to page 1.
 - Sortable column headers are buttons with `aria-sort`.
@@ -120,6 +123,7 @@ Behavior:
 ```
 
 Behavior:
+
 - Any missing value shows "Not available" with the reason when known, never a blank cell.
 - Unmatched or unsupported applications hide the update button and explain why. No command is ever guessed.
 - "Review update" opens the confirmation dialog (section 5.2).
@@ -167,6 +171,7 @@ Behavior:
 ```
 
 Behavior:
+
 - The dialog is modal: focus is trapped, Esc closes it, and focus returns to the "Review" button.
 - Initial focus is on "Cancel", not on the destructive action.
 - The target package and version must always be visible.
@@ -221,6 +226,7 @@ Unavailable state: "Security data is currently unavailable. The rest of UpdatePi
 ```
 
 Behavior:
+
 - Filters by date range, type and outcome. Pagination as in Applications.
 - Expanded details show only safe diagnostic metadata. No file contents, passwords or browsing data.
 - The Audit tab shows actor, device, event type, target and timestamp.
@@ -249,6 +255,7 @@ Behavior:
 ```
 
 Behavior:
+
 - "Revoke agent" asks for confirmation and explains the effect: the agent stops working until re-paired.
 - The pairing code is single-use and short-lived. It is never shown after it expires or is used.
 - Every control saves or performs its stated action. Unavailable options are removed or clearly labelled "Not available yet", never left as dead buttons.
@@ -257,24 +264,24 @@ Behavior:
 
 Every data-driven page implements these. They are designed, not left to defaults.
 
-| State | Treatment |
-|---|---|
-| Loading | Skeleton placeholders matching the final layout; `aria-busy="true"`; no layout jump |
-| Empty (first use) | Explanation plus one clear next action (for example "Pair your agent") |
-| Empty (no results) | Message plus "Clear filters" |
-| Error | Plain-language message, cause if known, "Try again" button; details expandable |
-| Success | Toast with `role="status"`, also reflected in the page content |
-| Stale data | Banner: "Data from <time> ago. Run a scan to refresh." Shown after a set threshold |
+| State              | Treatment                                                                               |
+| ------------------ | --------------------------------------------------------------------------------------- |
+| Loading            | Skeleton placeholders matching the final layout; `aria-busy="true"`; no layout jump     |
+| Empty (first use)  | Explanation plus one clear next action (for example "Pair your agent")                  |
+| Empty (no results) | Message plus "Clear filters"                                                            |
+| Error              | Plain-language message, cause if known, "Try again" button; details expandable          |
+| Success            | Toast with `role="status"`, also reflected in the page content                          |
+| Stale data         | Banner: "Data from <time> ago. Run a scan to refresh." Shown after a set threshold      |
 | Disconnected agent | Persistent banner and top-bar indicator; scan and update actions disabled with a reason |
-| Sample data | Visible banner: "Sample data. Not from a real scan." on every page using it |
+| Sample data        | Visible banner: "Sample data. Not from a real scan." on every page using it             |
 
 ## 10. Responsive behavior
 
-| Width | Layout |
-|---|---|
-| Under 768px (mobile) | Sidebar becomes a drawer; tables become stacked cards or scroll inside their own container; dialogs go full width |
-| 768px to 1199px (tablet) | Collapsed icon sidebar with labels on hover and focus; tables keep core columns, secondary columns hidden |
-| 1200px and up (desktop) | Full sidebar, all columns visible |
+| Width                    | Layout                                                                                                            |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Under 768px (mobile)     | Sidebar becomes a drawer; tables become stacked cards or scroll inside their own container; dialogs go full width |
+| 768px to 1199px (tablet) | Collapsed icon sidebar with labels on hover and focus; tables keep core columns, secondary columns hidden         |
+| 1200px and up (desktop)  | Full sidebar, all columns visible                                                                                 |
 
 Wide content scrolls inside its own container. The page body never scrolls sideways.
 
