@@ -151,3 +151,12 @@ vite.config.ts.timestamp-*
 apps/api/generated/
 
 apps/api/generated/
+
+.agents/
+
+apps/api/.agents/
+apps/api/.claude/
+apps/api/.windsurf/
+
+apps/api/skills-lock.json
+apps/web/AGENTS.md
