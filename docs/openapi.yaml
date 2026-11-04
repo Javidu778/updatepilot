@@ -36,6 +36,7 @@ tags:
   - name: History
   - name: Security
   - name: Agent
+  - name: Health
 security:
   - cookieAuth: []
 
@@ -136,7 +137,8 @@ paths:
     post:
       tags: [Devices]
       summary: Create a one-time pairing code (additional endpoint)
-      description: The code is shown once, expires after a short time and is stored only as a hash.
+      description: The code is shown once, expires after a short time and is stored
+        only as a hash.
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
@@ -171,7 +173,8 @@ paths:
               schema: { $ref: '#/components/schemas/PairResponse' }
         '400': { $ref: '#/components/responses/ValidationError' }
         '404':
-          description: Code unknown, expired or already used (the same response for all three)
+          description: Code unknown, expired or already used (the same response for all
+            three)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -412,7 +415,8 @@ paths:
     get:
       tags: [Security]
       summary: Verified security findings
-      description: Only findings with a verified package match and a known source are returned.
+      description: Only findings with a verified package match and a known source are
+        returned.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -527,6 +531,40 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/health:
+    get:
+      tags:
+        - Health
+      summary: Liveness check
+      description: The process is up. Never touches the database.
+      security: []
+      responses:
+        '200':
+          description: The API is running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /api/v1/health/ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness check
+      description: Ready when the database answers. Error details are never returned.
+      security: []
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+        '503':
+          description: Not ready (database unreachable)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
 
 components:
   securitySchemes:
@@ -588,12 +626,14 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     Conflict:
-      description: Invalid job state, an active job already exists, or an idempotency conflict (INVALID_STATE, IDEMPOTENCY_CONFLICT, DEVICE_REVOKED)
+      description: Invalid job state, an active job already exists, or an idempotency
+        conflict (INVALID_STATE, IDEMPOTENCY_CONFLICT, DEVICE_REVOKED)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     Unprocessable:
-      description: Unsupported package, expired preview, or the update changed since the preview (UNSUPPORTED_PACKAGE, UPDATE_CHANGED)
+      description: Unsupported package, expired preview, or the update changed since
+        the preview (UNSUPPORTED_PACKAGE, UPDATE_CHANGED)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -744,7 +784,8 @@ components:
         deviceId: { type: string, format: uuid }
         agentToken:
           type: string
-          description: Shown once. Store it protected on the device; the server keeps only a hash.
+          description: Shown once. Store it protected on the device; the server keeps only
+            a hash.
         pollIntervalSeconds: { type: integer, minimum: 1 }
 
     # ---------------- jobs
@@ -997,7 +1038,8 @@ components:
         details:
           type: object
           additionalProperties: true
-          description: Safe diagnostic metadata only. Never secrets, tokens or file contents.
+          description: Safe diagnostic metadata only. Never secrets, tokens or file
+            contents.
     HistoryPage:
       allOf:
         - $ref: '#/components/schemas/PageEnvelope'
@@ -1158,3 +1200,40 @@ components:
         pageSize: { type: integer }
         total: { type: integer }
         totalPages: { type: integer }
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - time
+        - version
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+        time:
+          type: string
+          format: date-time
+        version:
+          type: string
+    ReadinessResponse:
+      type: object
+      required:
+        - status
+        - checks
+      properties:
+        status:
+          type: string
+          enum:
+            - ready
+            - unavailable
+        checks:
+          type: object
+          required:
+            - database
+          properties:
+            database:
+              type: string
+              enum:
+                - up
+                - down

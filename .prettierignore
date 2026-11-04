@@ -4,3 +4,10 @@ dist
 .next
 coverage
 generated
+next-env.d.ts
+apps/web/src/app/tokens.css
+
+.agents
+
+apps/api/.claude
+apps/api/.windsurf
