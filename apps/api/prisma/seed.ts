@@ -8,7 +8,7 @@
  *
  * Safe to re-run: it removes the previous sample device first.
  */
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../src/auth/password';
 import { prisma } from '../src/lib/prisma';
 
 const DEMO_EMAIL = 'demo@updatepilot.local';
@@ -125,7 +125,7 @@ async function main() {
   await prisma.securityFinding.deleteMany({ where: { isSample: true } });
 
   const password = process.env.SEED_DEMO_PASSWORD ?? 'ChangeMe-Demo-123';
-  const passwordHash = await bcrypt.hash(password, 12);
+  const passwordHash = await hashPassword(password);
 
   const user = await prisma.user.upsert({
     where: { email: DEMO_EMAIL },

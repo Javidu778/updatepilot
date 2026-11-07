@@ -44,6 +44,7 @@ export type ActorType = z.infer<typeof actorTypeSchema>;
 export const AUDIT_EVENT_TYPES = [
   'USER_REGISTERED',
   'USER_LOGIN',
+  'USER_LOGOUT',
   'DEVICE_PAIRING_CODE_CREATED',
   'DEVICE_PAIRED',
   'DEVICE_REVOKED',
