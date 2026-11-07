@@ -18,9 +18,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      # prisma.config.ts needs a value to load. Generating the client does not connect to a database.
+      # Points at the Postgres service below. prisma.config.ts also needs a value just to load.
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       NEXT_TELEMETRY_DISABLED: '1'
+    # A real database for the auth integration tests. Its credentials match DATABASE_URL above.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
 
@@ -34,6 +49,9 @@ jobs:
 
       - name: Generate Prisma client
         run: npm run db:generate -w apps/api
+
+      - name: Apply database migrations
+        run: npm run db:deploy -w apps/api
 
       - name: Lint
         run: npm run lint
