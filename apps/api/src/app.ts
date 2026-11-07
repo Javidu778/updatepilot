@@ -3,10 +3,11 @@ import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
+import { createAuthRouter } from './auth';
 import type { AppConfig } from './config';
 import { createDocsRouter } from './docs';
-import type { Logger } from './lib/logger';
 import { errorHandler } from './middleware/error-handler';
+import type { Logger } from './lib/logger';
 import { notFound } from './middleware/not-found';
 import { createRateLimiter } from './middleware/rate-limit';
 import { healthRouter } from './routes/health';
@@ -43,6 +44,7 @@ export function createApp({
       },
     }),
   );
+  
 
   // API docs (Swagger UI). Mounted before the global security headers because they relax CSP for these routes only.
   if (config.enableApiDocs) {
@@ -72,6 +74,7 @@ export function createApp({
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/api/v1', healthRouter({ version: config.version, checkDatabase }));
+  app.use('/api/v1/auth', createAuthRouter());
 
   extraRoutes?.(app);
 

@@ -88,6 +88,14 @@ export const userSchema = z.object({
 });
 export type User = z.infer<typeof userSchema>;
 
+// Returned by register, login and GET /auth/me.
+// The client sends csrfToken back in the X-CSRF-Token header on state-changing requests.
+export const authResponseSchema = z.object({
+  user: userSchema,
+  csrfToken: z.string(),
+});
+export type AuthResponse = z.infer<typeof authResponseSchema>;
+
 // ---------------------------------------------------------------------------
 // Devices and pairing
 // ---------------------------------------------------------------------------
