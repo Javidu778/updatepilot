@@ -33,8 +33,12 @@ export async function writeAudit(input: AuditInput, log?: AuditLogger): Promise<
       },
     });
   } catch (err) {
-    const detail = { event: input.eventType, error: err instanceof Error ? err.message : 'unknown' };
+    const detail = {
+      event: input.eventType,
+      error: err instanceof Error ? err.message : 'unknown',
+    };
     if (log) log.error(detail, 'audit write failed');
-    else console.error(JSON.stringify({ level: 'error', message: 'audit write failed', ...detail }));
+    else
+      console.error(JSON.stringify({ level: 'error', message: 'audit write failed', ...detail }));
   }
 }

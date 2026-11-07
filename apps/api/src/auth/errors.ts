@@ -1,7 +1,8 @@
 import { AppError } from '../lib/errors';
 
 /** Small helpers that create the shell's AppError with the right code. */
-export const unauthenticated = (message = 'Authentication required') => new AppError('UNAUTHENTICATED', message);
+export const unauthenticated = (message = 'Authentication required') =>
+  new AppError('UNAUTHENTICATED', message);
 
 export const forbidden = (message = 'Forbidden') => new AppError('FORBIDDEN', message);
 

@@ -16,7 +16,9 @@ describe('passwords', () => {
   });
 
   it('uses a different salt each time', async () => {
-    expect(await hashPassword('same-password-123')).not.toBe(await hashPassword('same-password-123'));
+    expect(await hashPassword('same-password-123')).not.toBe(
+      await hashPassword('same-password-123'),
+    );
   });
 
   it('counts every character of long passwords (bcrypt alone stops at 72 bytes)', async () => {

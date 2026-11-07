@@ -10,7 +10,10 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const parseCookies = cookieParser();
 
 /** Makes sure req.cookies exists even if the app did not install cookie-parser globally. */
-function ensureCookies(req: Parameters<RequestHandler>[0], res: Parameters<RequestHandler>[1]): Promise<void> {
+function ensureCookies(
+  req: Parameters<RequestHandler>[0],
+  res: Parameters<RequestHandler>[1],
+): Promise<void> {
   if (req.cookies) return Promise.resolve();
   return new Promise((resolve) => parseCookies(req, res, () => resolve()));
 }

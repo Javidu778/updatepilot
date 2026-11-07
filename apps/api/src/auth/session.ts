@@ -43,7 +43,9 @@ export async function findSession(token: string): Promise<FoundSession | null> {
 
   if (now - session.lastUsedAt.getTime() > TOUCH_INTERVAL_MS) {
     // Best effort. A failed touch must not fail the request.
-    void prisma.session.update({ where: { id: session.id }, data: { lastUsedAt: new Date(now) } }).catch(() => undefined);
+    void prisma.session
+      .update({ where: { id: session.id }, data: { lastUsedAt: new Date(now) } })
+      .catch(() => undefined);
   }
   return { sessionId: session.id, tokenHash, user: session.user };
 }

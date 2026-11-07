@@ -51,7 +51,10 @@ patch('apps/api/prisma/schema.prisma', [
   {
     name: 'USER_LOGOUT audit event',
     alreadyDone: (t) => /\bUSER_LOGOUT\b/.test(t),
-    apply: (t) => (/(\n[ \t]*USER_LOGIN)(\r?\n)/.test(t) ? t.replace(/(\n[ \t]*USER_LOGIN)(\r?\n)/, `$1$2  USER_LOGOUT$2`) : null),
+    apply: (t) =>
+      /(\n[ \t]*USER_LOGIN)(\r?\n)/.test(t)
+        ? t.replace(/(\n[ \t]*USER_LOGIN)(\r?\n)/, `$1$2  USER_LOGOUT$2`)
+        : null,
   },
   {
     name: 'User.sessions relation',
@@ -129,7 +132,13 @@ patch('apps/api/prisma/seed.ts', [
   {
     name: 'import hashPassword instead of bcryptjs',
     alreadyDone: (t) => /import \{ hashPassword \}/.test(t),
-    apply: (t) => (/import bcrypt from 'bcryptjs';/.test(t) ? t.replace(/import bcrypt from 'bcryptjs';/, "import { hashPassword } from '../src/auth/password';") : null),
+    apply: (t) =>
+      /import bcrypt from 'bcryptjs';/.test(t)
+        ? t.replace(
+            /import bcrypt from 'bcryptjs';/,
+            "import { hashPassword } from '../src/auth/password';",
+          )
+        : null,
   },
   {
     name: 'use hashPassword for the demo user',
@@ -139,7 +148,9 @@ patch('apps/api/prisma/seed.ts', [
 ]);
 
 if (problems > 0) {
-  console.log(`\nFinished with ${problems} problem(s). Fix the items marked NOT FOUND / SKIP, then run it again.`);
+  console.log(
+    `\nFinished with ${problems} problem(s). Fix the items marked NOT FOUND / SKIP, then run it again.`,
+  );
   process.exit(1);
 }
 console.log('\nAll edits are in place.');

@@ -12,7 +12,13 @@ import { unauthenticated } from './errors';
 import { csrfProtection, originCheck, requireAuth } from './middleware';
 import { hashPassword, verifyAgainstDummy, verifyPassword } from './password';
 import { emailKey } from './rate-limit';
-import { createSession, deleteExpiredSessions, deleteSessionById, deleteSessionByToken, sessionCookieOptions } from './session';
+import {
+  createSession,
+  deleteExpiredSessions,
+  deleteSessionById,
+  deleteSessionByToken,
+  sessionCookieOptions,
+} from './session';
 import { csrfTokenFor, hashSessionToken } from './tokens';
 import type { AuthUser } from './types';
 
@@ -30,7 +36,10 @@ export type AuthRouterOptions = {
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 function toResponse(user: AuthUser, csrfToken: string): AuthResponse {
-  return { user: { id: user.id, email: user.email, createdAt: user.createdAt.toISOString() }, csrfToken };
+  return {
+    user: { id: user.id, email: user.email, createdAt: user.createdAt.toISOString() },
+    csrfToken,
+  };
 }
 
 function isUniqueViolation(err: unknown): boolean {
@@ -48,88 +57,137 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
   const cfg = getAuthConfig(); // fail fast if SESSION_SECRET is missing
   const windowMs = options.windowMs ?? 15 * 60 * 1000;
 
-  const loginIpLimiter = createRateLimiter({ windowMs, limit: options.loginIpLimit ?? 20, skipSuccessfulRequests: true });
+  const loginIpLimiter = createRateLimiter({
+    windowMs,
+    limit: options.loginIpLimit ?? 20,
+    skipSuccessfulRequests: true,
+  });
   const loginEmailLimiter = createRateLimiter({
     windowMs,
     limit: options.loginEmailLimit ?? 5,
     skipSuccessfulRequests: true,
     key: emailKey,
   });
-  const registerLimiter = createRateLimiter({ windowMs: 60 * 60 * 1000, limit: options.registerLimit ?? 10 });
+  const registerLimiter = createRateLimiter({
+    windowMs: 60 * 60 * 1000,
+    limit: options.registerLimit ?? 10,
+  });
 
   const router = Router();
   router.use(cookieParser());
   router.use(originCheck);
 
-  router.post('/register', registerLimiter, validate({ body: registerRequestSchema }), async (req, res) => {
-    const body = getValidated<{ body: RegisterBody }>(res).body;
-    const passwordHash = await hashPassword(body.password);
+  router.post(
+    '/register',
+    registerLimiter,
+    validate({ body: registerRequestSchema }),
+    async (req, res) => {
+      const body = getValidated<{ body: RegisterBody }>(res).body;
+      const passwordHash = await hashPassword(body.password);
 
-    let user: AuthUser;
-    try {
-      user = await prisma.user.create({
-        data: { email: normalizeEmail(body.email), passwordHash },
-        select: { id: true, email: true, createdAt: true },
-      });
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        // Deliberately vague so the form cannot be used to find out who has an account.
-        throw new AppError('VALIDATION_ERROR', 'Registration failed', [
-          { path: 'email', message: 'This email cannot be used' },
-        ]);
+      let user: AuthUser;
+      try {
+        user = await prisma.user.create({
+          data: { email: normalizeEmail(body.email), passwordHash },
+          select: { id: true, email: true, createdAt: true },
+        });
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          // Deliberately vague so the form cannot be used to find out who has an account.
+          throw new AppError('VALIDATION_ERROR', 'Registration failed', [
+            { path: 'email', message: 'This email cannot be used' },
+          ]);
+        }
+        throw err;
       }
-      throw err;
-    }
 
-    const { token, expiresAt } = await createSession(user.id);
-    res.cookie(cfg.cookieName, token, { ...sessionCookieOptions(), expires: expiresAt });
-    await writeAudit({ actorType: 'USER', actorUserId: user.id, eventType: 'USER_REGISTERED', targetType: 'User', targetId: user.id }, req.log);
-
-    res.status(201).json(toResponse(user, csrfTokenFor(hashSessionToken(token), cfg.sessionSecret)));
-  });
-
-  router.post('/login', loginIpLimiter, loginEmailLimiter, validate({ body: loginRequestSchema }), async (req, res) => {
-    const body = getValidated<{ body: LoginBody }>(res).body;
-    const user = await prisma.user.findUnique({
-      where: { email: normalizeEmail(body.email) },
-      select: { id: true, email: true, createdAt: true, passwordHash: true },
-    });
-
-    // Same work and same message whether the email exists or not.
-    const valid = user ? await verifyPassword(body.password, user.passwordHash) : await verifyAgainstDummy(body.password);
-    if (!user || !valid) {
+      const { token, expiresAt } = await createSession(user.id);
+      res.cookie(cfg.cookieName, token, { ...sessionCookieOptions(), expires: expiresAt });
       await writeAudit(
         {
           actorType: 'USER',
-          actorUserId: user?.id ?? null,
-          eventType: 'UNAUTHORIZED_ATTEMPT',
-          targetType: 'login',
-          metadata: { reason: 'bad_credentials' },
+          actorUserId: user.id,
+          eventType: 'USER_REGISTERED',
+          targetType: 'User',
+          targetId: user.id,
         },
         req.log,
       );
-      throw unauthenticated('Invalid email or password');
-    }
 
-    // New session on every login. Drop the one this browser already had.
-    const previous: unknown = req.cookies?.[cfg.cookieName];
-    if (typeof previous === 'string' && previous.length > 0 && previous.length <= 200) {
-      await deleteSessionByToken(previous);
-    }
-    await deleteExpiredSessions();
+      res
+        .status(201)
+        .json(toResponse(user, csrfTokenFor(hashSessionToken(token), cfg.sessionSecret)));
+    },
+  );
 
-    const { token, expiresAt } = await createSession(user.id);
-    res.cookie(cfg.cookieName, token, { ...sessionCookieOptions(), expires: expiresAt });
-    await writeAudit({ actorType: 'USER', actorUserId: user.id, eventType: 'USER_LOGIN', targetType: 'User', targetId: user.id }, req.log);
+  router.post(
+    '/login',
+    loginIpLimiter,
+    loginEmailLimiter,
+    validate({ body: loginRequestSchema }),
+    async (req, res) => {
+      const body = getValidated<{ body: LoginBody }>(res).body;
+      const user = await prisma.user.findUnique({
+        where: { email: normalizeEmail(body.email) },
+        select: { id: true, email: true, createdAt: true, passwordHash: true },
+      });
 
-    res.json(toResponse(user, csrfTokenFor(hashSessionToken(token), cfg.sessionSecret)));
-  });
+      // Same work and same message whether the email exists or not.
+      const valid = user
+        ? await verifyPassword(body.password, user.passwordHash)
+        : await verifyAgainstDummy(body.password);
+      if (!user || !valid) {
+        await writeAudit(
+          {
+            actorType: 'USER',
+            actorUserId: user?.id ?? null,
+            eventType: 'UNAUTHORIZED_ATTEMPT',
+            targetType: 'login',
+            metadata: { reason: 'bad_credentials' },
+          },
+          req.log,
+        );
+        throw unauthenticated('Invalid email or password');
+      }
+
+      // New session on every login. Drop the one this browser already had.
+      const previous: unknown = req.cookies?.[cfg.cookieName];
+      if (typeof previous === 'string' && previous.length > 0 && previous.length <= 200) {
+        await deleteSessionByToken(previous);
+      }
+      await deleteExpiredSessions();
+
+      const { token, expiresAt } = await createSession(user.id);
+      res.cookie(cfg.cookieName, token, { ...sessionCookieOptions(), expires: expiresAt });
+      await writeAudit(
+        {
+          actorType: 'USER',
+          actorUserId: user.id,
+          eventType: 'USER_LOGIN',
+          targetType: 'User',
+          targetId: user.id,
+        },
+        req.log,
+      );
+
+      res.json(toResponse(user, csrfTokenFor(hashSessionToken(token), cfg.sessionSecret)));
+    },
+  );
 
   router.post('/logout', requireAuth, csrfProtection, async (req, res) => {
     const auth = req.auth!;
     await deleteSessionById(auth.sessionId);
     res.clearCookie(cfg.cookieName, sessionCookieOptions());
-    await writeAudit({ actorType: 'USER', actorUserId: auth.user.id, eventType: 'USER_LOGOUT', targetType: 'User', targetId: auth.user.id }, req.log);
+    await writeAudit(
+      {
+        actorType: 'USER',
+        actorUserId: auth.user.id,
+        eventType: 'USER_LOGOUT',
+        targetType: 'User',
+        targetId: auth.user.id,
+      },
+      req.log,
+    );
     res.status(204).end();
   });
 

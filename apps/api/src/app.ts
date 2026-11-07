@@ -44,7 +44,6 @@ export function createApp({
       },
     }),
   );
-  
 
   // API docs (Swagger UI). Mounted before the global security headers because they relax CSP for these routes only.
   if (config.enableApiDocs) {

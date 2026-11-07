@@ -12,12 +12,12 @@ Agents do **not** use this system. They use their own credential (Week 3).
 
 ## 2. Endpoints
 
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| POST | `/api/v1/auth/register` | none | Create an account and start a session (201) |
-| POST | `/api/v1/auth/login` | none | Start a session (200) |
-| POST | `/api/v1/auth/logout` | session + CSRF token | End the session (204) |
-| GET | `/api/v1/auth/me` | session | Current user and a fresh CSRF token |
+| Method | Path                    | Auth                 | Purpose                                     |
+| ------ | ----------------------- | -------------------- | ------------------------------------------- |
+| POST   | `/api/v1/auth/register` | none                 | Create an account and start a session (201) |
+| POST   | `/api/v1/auth/login`    | none                 | Start a session (200)                       |
+| POST   | `/api/v1/auth/logout`   | session + CSRF token | End the session (204)                       |
+| GET    | `/api/v1/auth/me`       | session              | Current user and a fresh CSRF token         |
 
 `register`, `login` and `me` return `{ user, csrfToken }` (type `AuthResponse` in `@updatepilot/shared`).
 
@@ -41,11 +41,11 @@ The API must allow the web origin with credentials (CORS). If the web app and AP
 ## 3a. Mounting in `app.ts`
 
 ```ts
-app.use(express.json({ limit: '1mb' }));          // global body parser comes first
-app.use('/api/v1/auth', createAuthRouter());       // reads req.body, so it must come after the parser
+app.use(express.json({ limit: '1mb' })); // global body parser comes first
+app.use('/api/v1/auth', createAuthRouter()); // reads req.body, so it must come after the parser
 // ... other routers ...
 app.use(notFound);
-app.use(errorHandler);                              // the shell's handler from ./middleware/error-handler
+app.use(errorHandler); // the shell's handler from ./middleware/error-handler
 ```
 
 The auth router relies on the shell for: the body parser, request IDs and logging (pino-http), CORS (the `X-CSRF-Token` header is already allowed), the error handler and the rate limiter factory `createRateLimiter` (extended with two optional settings: `skipSuccessfulRequests` and `key`).
@@ -62,7 +62,9 @@ router.get('/devices/:id', requireAuth, async (req, res) => {
 });
 
 // State-changing route: also needs the CSRF check
-router.post('/devices/:id/scans', requireAuth, csrfProtection, async (req, res) => { /* ... */ });
+router.post('/devices/:id/scans', requireAuth, csrfProtection, async (req, res) => {
+  /* ... */
+});
 ```
 
 Rules for every new route:
@@ -76,28 +78,28 @@ Rules for every new route:
 
 ## 5. Security measures
 
-| Threat | Measure |
-|---|---|
-| Stolen database | Passwords stored as bcrypt hashes; session tokens stored only as SHA-256 hashes |
-| Weak password storage | bcrypt cost 12 (cost 4 in tests only). The password is first reduced with SHA-256 so bcrypt's 72-byte limit cannot silently cut long passwords |
-| Session theft by XSS | Cookie is `HttpOnly`; CSRF token held in memory, not storage |
-| Session theft on the network | Cookie is `Secure` in production (HTTPS only) |
-| CSRF | `SameSite=Lax` cookie, a per-session CSRF token (HMAC of the session hash) checked on every state-changing request, plus an `Origin` header check |
-| Session fixation | A new session token is issued on every login and the browser's old session is deleted |
-| Account enumeration | Login gives the same message for a wrong password and an unknown email, and does the same amount of hashing work (a dummy hash is checked when the email is unknown). Registration of an existing email gives a vague message |
-| Brute force | Login: 5 failed attempts per email and 20 per IP per 15 minutes. Registration: 10 per IP per hour. Successful logins are not counted, so the real owner is not locked out |
-| Oversized or malformed bodies | The app's global 1 MB JSON limit, then strict field limits from the shared schemas (password at most 128 characters, email at most 254); malformed JSON returns the standard error |
-| ID probing | Ownership helpers return `404` for other users' resources and for IDs that are not UUIDs |
-| Information leaks | Error responses never include stack traces; validation errors contain field paths and messages, never the submitted values; audit metadata never holds secrets or emails |
-| Forgotten audit trail | Registration, login, failed login (without the attempted email), and logout are written to `AuditEvent` |
+| Threat                        | Measure                                                                                                                                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stolen database               | Passwords stored as bcrypt hashes; session tokens stored only as SHA-256 hashes                                                                                                                                               |
+| Weak password storage         | bcrypt cost 12 (cost 4 in tests only). The password is first reduced with SHA-256 so bcrypt's 72-byte limit cannot silently cut long passwords                                                                                |
+| Session theft by XSS          | Cookie is `HttpOnly`; CSRF token held in memory, not storage                                                                                                                                                                  |
+| Session theft on the network  | Cookie is `Secure` in production (HTTPS only)                                                                                                                                                                                 |
+| CSRF                          | `SameSite=Lax` cookie, a per-session CSRF token (HMAC of the session hash) checked on every state-changing request, plus an `Origin` header check                                                                             |
+| Session fixation              | A new session token is issued on every login and the browser's old session is deleted                                                                                                                                         |
+| Account enumeration           | Login gives the same message for a wrong password and an unknown email, and does the same amount of hashing work (a dummy hash is checked when the email is unknown). Registration of an existing email gives a vague message |
+| Brute force                   | Login: 5 failed attempts per email and 20 per IP per 15 minutes. Registration: 10 per IP per hour. Successful logins are not counted, so the real owner is not locked out                                                     |
+| Oversized or malformed bodies | The app's global 1 MB JSON limit, then strict field limits from the shared schemas (password at most 128 characters, email at most 254); malformed JSON returns the standard error                                            |
+| ID probing                    | Ownership helpers return `404` for other users' resources and for IDs that are not UUIDs                                                                                                                                      |
+| Information leaks             | Error responses never include stack traces; validation errors contain field paths and messages, never the submitted values; audit metadata never holds secrets or emails                                                      |
+| Forgotten audit trail         | Registration, login, failed login (without the attempted email), and logout are written to `AuditEvent`                                                                                                                       |
 
 ## 6. Configuration
 
-| Variable | Required | Meaning |
-|---|---|---|
-| `SESSION_SECRET` | Yes | At least 32 random characters. Key for CSRF tokens. Keep it private and different in every environment |
-| `WEB_ORIGIN` | No (default `http://localhost:3000`) | Exact origin of the web app, used for the Origin check and CORS |
-| `NODE_ENV` | No | `production` turns on `Secure` cookies and requires the Origin header |
+| Variable         | Required                             | Meaning                                                                                                |
+| ---------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `SESSION_SECRET` | Yes                                  | At least 32 random characters. Key for CSRF tokens. Keep it private and different in every environment |
+| `WEB_ORIGIN`     | No (default `http://localhost:3000`) | Exact origin of the web app, used for the Origin check and CORS                                        |
+| `NODE_ENV`       | No                                   | `production` turns on `Secure` cookies and requires the Origin header                                  |
 
 Generate a secret:
 
@@ -141,8 +143,8 @@ Session lifetime is 7 days. `lastUsedAt` is refreshed at most once per minute. E
 
 ## 8. Tests
 
-| Command | What runs |
-|---|---|
+| Command                | What runs                                                                                                |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | `npm test -w apps/api` | Unit tests (password hashing, tokens, CSRF tokens) and, when a database is configured, integration tests |
 
 The integration tests make real HTTP requests against the real database. They cover registration, login, wrong credentials, the same-answer rule for unknown emails, hardened cookie flags, hashed session storage, logout with and without the CSRF token, a CSRF token from another session, cross-site Origin rejection, expired sessions, rate limiting of both logins and registrations, malformed, oversized and over-long inputs, and ownership (owner allowed, another user and anonymous refused, invalid IDs and injection strings give 404).
