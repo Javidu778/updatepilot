@@ -15,7 +15,7 @@ loadEnv({ path: '../../.env', quiet: true });
 const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.SESSION_SECRET);
 
 const PASSWORD = 'Correct-Horse-Battery-9';
-const uniqueEmail = () => `test-${randomUUID()}@example.test`;
+const uniqueEmail = () => `auth-test-${randomUUID()}@example.test`;
 
 describe.skipIf(!hasDatabase)('auth routes (database)', () => {
   // Loaded after the skip check because importing the Prisma client requires DATABASE_URL.
@@ -74,7 +74,7 @@ describe.skipIf(!hasDatabase)('auth routes (database)', () => {
   afterAll(async () => {
     if (!prisma) return;
     const testUsers = await prisma.user.findMany({
-      where: { email: { startsWith: 'test-', endsWith: '@example.test' } },
+      where: { email: { startsWith: 'auth-test-', endsWith: '@example.test' } },
       select: { id: true },
     });
     const ids = testUsers.map((u) => u.id);
