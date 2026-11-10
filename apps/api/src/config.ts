@@ -5,6 +5,7 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   WEB_ORIGIN: z.url(),
   DATABASE_URL: z.string().min(1),
+  // SESSION_SECRET is the name used by the auth module and existing .env files.
   JWT_SECRET: z.string().min(1),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   // Defaults to on outside production.
@@ -27,7 +28,11 @@ export type AppConfig = {
  * listing every problem so a misconfigured server never starts half-working.
  */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const parsed = envSchema.safeParse(env);
+  const normalizedEnv = {
+    ...env,
+    ...(env.JWT_SECRET ? {} : { JWT_SECRET: env.SESSION_SECRET }),
+  };
+  const parsed = envSchema.safeParse(normalizedEnv);
   if (!parsed.success) {
     const problems = parsed.error.issues.map(
       (i) => `  - ${i.path.join('.') || 'env'}: ${i.message}`,
@@ -35,9 +40,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error(`Invalid environment configuration:\n${problems.join('\n')}`);
   }
   const values = parsed.data;
+  const secret = values.JWT_SECRET;
 
   if (values.NODE_ENV === 'production') {
-    const weak = values.JWT_SECRET.length < 32 || values.JWT_SECRET === 'replace-me';
+    const weak = secret.length < 32 || secret === 'replace-me';
     if (weak) {
       throw new Error(
         'Invalid environment configuration:\n  - JWT_SECRET: must be at least 32 characters in production',

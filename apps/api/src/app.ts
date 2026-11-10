@@ -63,6 +63,7 @@ export function createApp({
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
       allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'Idempotency-Key'],
+      exposedHeaders: ['Retry-After', 'X-Request-Id'],
       maxAge: 600,
     }),
   );
