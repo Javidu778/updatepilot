@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 // The title template in layout.tsx does not apply to the page in the same route segment, so this one is absolute.
 export const metadata: Metadata = { title: { absolute: 'Overview | UpdatePilot' } };
+export const instant = false;
 
 const METRICS = ['Applications', 'Updates available', 'Last scan', 'Agent'];
 

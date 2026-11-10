@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
-import { AgentIndicator } from '@/components/AgentIndicator';
-import { ApiStatus } from '@/components/ApiStatus';
-import { Sidebar } from '@/components/Sidebar';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { AuthProvider } from '@/lib/auth/session';
 import './globals.css';
+import './session.css';
 
 export const metadata: Metadata = {
   title: { default: 'UpdatePilot', template: '%s | UpdatePilot' },
@@ -14,6 +12,10 @@ export const metadata: Metadata = {
 // A constant string, no user data, so inline use is safe.
 const THEME_SCRIPT = `try{var t=localStorage.getItem('up-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}`;
 
+/**
+ * The root layout holds only what every page needs: the document, the theme and the session.
+ * The app chrome (sidebar, top bar) lives in the (app) group; the sign-in pages in (auth).
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -21,24 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body>
-        <a href="#main-content" className="skip-link">
-          Skip to main content
-        </a>
-        <div className="app-shell">
-          <header className="topbar">
-            <span className="brand">UpdatePilot</span>
-            <div className="topbar-spacer" />
-            <AgentIndicator />
-            <ThemeToggle />
-          </header>
-          <nav className="sidebar" aria-label="Main">
-            <Sidebar />
-            <ApiStatus />
-          </nav>
-          <main id="main-content" tabIndex={-1} className="main">
-            {children}
-          </main>
-        </div>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

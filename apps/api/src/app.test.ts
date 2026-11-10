@@ -257,6 +257,15 @@ describe('loadConfig', () => {
     expect(config.enableApiDocs).toBe(true);
   });
 
+  it('accepts the auth module session secret used by the development environment', () => {
+    const config = loadConfig({
+      ...valid,
+      JWT_SECRET: undefined,
+      SESSION_SECRET: 'development-session-secret',
+    });
+    expect(config.port).toBe(4000);
+  });
+
   it('lists every problem when required variables are missing', () => {
     expect(() => loadConfig({} as NodeJS.ProcessEnv)).toThrow(
       /WEB_ORIGIN[\s\S]*DATABASE_URL[\s\S]*JWT_SECRET/,
