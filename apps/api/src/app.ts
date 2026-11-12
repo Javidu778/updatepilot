@@ -10,6 +10,9 @@ import { errorHandler } from './middleware/error-handler';
 import type { Logger } from './lib/logger';
 import { notFound } from './middleware/not-found';
 import { createRateLimiter } from './middleware/rate-limit';
+import { applicationsRouter } from './routes/applications';
+import { dashboardRouter } from './routes/dashboard';
+import { devicesRouter } from './routes/devices';
 import { healthRouter } from './routes/health';
 
 export type AppDeps = {
@@ -75,6 +78,11 @@ export function createApp({
 
   app.use('/api/v1', healthRouter({ version: config.version, checkDatabase }));
   app.use('/api/v1/auth', createAuthRouter());
+
+  // Read-only inventory APIs from Week 2, Day 3. Every route needs a signed-in user.
+  app.use('/api/v1/devices', devicesRouter());
+  app.use('/api/v1/dashboard', dashboardRouter());
+  app.use('/api/v1/applications', applicationsRouter());
 
   extraRoutes?.(app);
 
