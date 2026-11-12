@@ -167,7 +167,10 @@ export const APPLICATION_SORT_FIELDS = [
   'lastSeenAt',
 ] as const;
 
-const booleanQuery = z.enum(['true', 'false']).transform((v) => v === 'true');
+const booleanQuery = z.preprocess(
+  (value) => (value === 'true' ? true : value === 'false' ? false : value),
+  z.boolean(),
+);
 
 export const applicationsQuerySchema = paginationQuerySchema.extend({
   q: z.string().trim().max(100).optional(),
