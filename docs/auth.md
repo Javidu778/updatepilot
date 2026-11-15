@@ -149,7 +149,7 @@ Session lifetime is 7 days. `lastUsedAt` is refreshed at most once per minute. E
 
 The integration tests make real HTTP requests against the real database. They cover registration, login, wrong credentials, the same-answer rule for unknown emails, hardened cookie flags, hashed session storage, logout with and without the CSRF token, a CSRF token from another session, cross-site Origin rejection, expired sessions, rate limiting of both logins and registrations, malformed, oversized and over-long inputs, and ownership (owner allowed, another user and anonymous refused, invalid IDs and injection strings give 404).
 
-They use `@example.test` addresses and remove every row they create (users, sessions, audit events), so they are safe to run against your development database. Without `DATABASE_URL` and `SESSION_SECRET` the integration tests are skipped, so CI without a database stays green. Week 2 Day 6 adds a Postgres service to CI so they run there too.
+They use `@example.test` addresses and remove every row they create (users, sessions, audit events), so they are safe to run against your development database. CI runs them against a real Postgres service (`.github/workflows/ci.yml`), so a pull request cannot merge with failing integration tests.
 
 ## 9. Known limits (planned or accepted for the MVP)
 
