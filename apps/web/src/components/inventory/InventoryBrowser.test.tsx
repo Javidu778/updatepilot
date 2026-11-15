@@ -1,10 +1,9 @@
-import { render, screen, within} from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { AuthProvider } from '@/lib/auth/session';
 import { apiError, authBody, createFakeApi } from '@/test/fake-api';
 import { InventoryBrowser } from './InventoryBrowser';
-
 
 const nav = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -40,7 +39,14 @@ const APPLICATION = {
 };
 
 const page = (data: unknown[], overrides: Record<string, number> = {}) => ({
-  json: { data, page: 1, pageSize: 25, total: data.length, totalPages: data.length > 0 ? 1 : 0, ...overrides },
+  json: {
+    data,
+    page: 1,
+    pageSize: 25,
+    total: data.length,
+    totalPages: data.length > 0 ? 1 : 0,
+    ...overrides,
+  },
 });
 
 const SIGNED_IN = { 'GET /api/v1/auth/me': { json: authBody() } };
@@ -61,8 +67,7 @@ beforeEach(() => {
 });
 
 describe('inventory browser', () => {
-  
-    it('shows the rows the API returned, and asks for the default page once', async () => {
+  it('shows the rows the API returned, and asks for the default page once', async () => {
     const fake = renderBrowser({ 'GET /api/v1/applications': page([APPLICATION]) });
 
     const link = await screen.findByRole('link', { name: 'Firefox' });
@@ -82,7 +87,7 @@ describe('inventory browser', () => {
     expect(screen.getByText(/Pair an agent and run a scan/)).toBeTruthy();
   });
 
-    it('offers a reset when filters match nothing', async () => {
+  it('offers a reset when filters match nothing', async () => {
     nav.searchParams = new URLSearchParams('q=nothingmatches');
 
     renderBrowser({ 'GET /api/v1/applications': page([]) });

@@ -4,19 +4,21 @@ import { z } from 'zod';
 // Loads the repo-root .env when run from apps/api (npm workspace scripts). Existing variables win.
 loadEnv({ path: '../../.env', quiet: true });
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  WEB_ORIGIN: z.url().default('http://localhost:3000'),
-  SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
-}).superRefine((env, ctx) => {
-  if (env.NODE_ENV === 'production' && env.SESSION_SECRET.startsWith('replace-')) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['SESSION_SECRET'],
-      message: 'SESSION_SECRET is still the .env.example placeholder; set a real random value',
-    });
-  }
-});
+const envSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    WEB_ORIGIN: z.url().default('http://localhost:3000'),
+    SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
+  })
+  .superRefine((env, ctx) => {
+    if (env.NODE_ENV === 'production' && env.SESSION_SECRET.startsWith('replace-')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SESSION_SECRET'],
+        message: 'SESSION_SECRET is still the .env.example placeholder; set a real random value',
+      });
+    }
+  });
 
 export type AuthConfig = {
   isProduction: boolean;
