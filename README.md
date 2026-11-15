@@ -2,7 +2,7 @@
 
 Software update intelligence and management for Windows. A web dashboard and a local Windows agent discover installed applications, find available updates through WinGet, and run updates only after the user confirms them.
 
-> **Status: Week 1 complete (application shell).** The project has a working API shell, a web shell with six placeholder pages, a database schema with sample data, API contracts and a threat model. Scanning, pairing and updating are **not built yet**. See [Status](#status).
+> **Status: Week 2 complete (web application).** Sign-in and sessions, the devices/dashboard/inventory APIs, and the Overview dashboard, Applications inventory and application detail pages all work against seeded data. Scanning, pairing and updating are **not built yet** — those are Week 3 and Week 4. See [Status](#status).
 
 ## How it fits together
 
@@ -119,7 +119,7 @@ Every pull request runs `.github/workflows/ci.yml`: install, generate the Prisma
 | Database schema, migration, sample data                      | Done                            |
 | API shell: config, errors, validation, health, docs          | Done                            |
 | Web shell: layout, navigation, themes, six placeholder pages | Done                            |
-| Authentication, inventory API and UI                         | Week 2                          |
+| Authentication, inventory API and UI                         | Done                            |
 | Agent pairing, scanning, WinGet integration                  | Week 3                          |
 | Update workflow and verification                             | Week 4                          |
 | Security tests, accessibility audit, exports                 | Week 5                          |

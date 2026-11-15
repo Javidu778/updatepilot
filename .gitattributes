@@ -1,0 +1,10 @@
+# Normalise every text file to LF in the repository, whatever the OS checkout uses.
+* text=auto eol=lf
+
+# Windows scripts keep CRLF so they run in Windows PowerShell.
+*.ps1 text eol=crlf
+
+# Binary files
+*.png binary
+*.ico binary
+*.pdf binary
