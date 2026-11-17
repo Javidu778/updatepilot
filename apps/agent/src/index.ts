@@ -1,7 +1,8 @@
 import * as os from 'node:os';
-import { agentJobSchema } from '@updatepilot/shared';
+import { agentJobSchema, scannedApplicationSchema } from '@updatepilot/shared';
 import { AgentApi, AgentHttpError, apiBaseUrl } from './api-client';
 import { loadAgentToken, saveAgentToken } from './credential-store';
+import { readInventory } from './winget/run';
 
 const AGENT_VERSION = '0.1.0';
 
@@ -66,9 +67,16 @@ async function run(): Promise<void> {
         const parsed = agentJobSchema.safeParse(job);
         if (!parsed.success) {
           console.error('Ignoring a job that failed validation:', parsed.error.issues[0]?.message);
+        } else if (parsed.data.kind === 'scan') {
+          console.log(`Scan ${parsed.data.jobId}: reading installed software...`);
+          const applications = await readInventory();
+          const valid = applications.filter(
+            (application) => scannedApplicationSchema.safeParse(application).success,
+          );
+          console.log(`Scan ${parsed.data.jobId}: ${valid.length} applications read.`);
         } else {
           console.log(
-            `Claimed ${parsed.data.kind} job ${parsed.data.jobId} (execution arrives on Day 3)`,
+            `Claimed ${parsed.data.kind} job ${parsed.data.jobId}; updates arrive on Day 5.`,
           );
         }
       }
