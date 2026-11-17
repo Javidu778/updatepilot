@@ -27,17 +27,15 @@ export type WingetRow = {
 
 const HEADER = /^\s*Name\s+Id\s+Version/i;
 const SEPARATOR = /^\s*-{5,}[\s-]*$/;
-const TRAILING_SUMMARY = /^\s*(\d+\s+(upgrade|package)|the following|no installed package|no applicable)/i;
+const TRAILING_SUMMARY =
+  /^\s*(\d+\s+(upgrade|package)|the following|no installed package|no applicable)/i;
 const SOURCE_VALUES = /^(winget|msstore)$/i;
 const VERSION = /^(unknown|[<>=~^]?\s?v?\d[\w.+-]*)$/i;
 const PACKAGE_ID = /^[A-Za-z0-9][A-Za-z0-9.+_-]{1,127}$/;
 
 function isNoise(line: string): boolean {
   return (
-    line.trim() === '' ||
-    HEADER.test(line) ||
-    SEPARATOR.test(line) ||
-    TRAILING_SUMMARY.test(line)
+    line.trim() === '' || HEADER.test(line) || SEPARATOR.test(line) || TRAILING_SUMMARY.test(line)
   );
 }
 
