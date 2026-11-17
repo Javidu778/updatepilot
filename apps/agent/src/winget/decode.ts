@@ -7,7 +7,6 @@
  * Every row of the parser below depends on this being normalised first.
  */
 
-// eslint-disable-next-line no-control-regex
 const ANSI = /\u001B\[[0-9;]*[A-Za-z]/g;
 
 /** A UTF-16LE pipe is half NUL bytes; UTF-8 text is almost never NUL-heavy. */
