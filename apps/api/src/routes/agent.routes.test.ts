@@ -140,4 +140,22 @@ describe.skipIf(!hasDatabase)('agent job channel (database)', () => {
     expect(row.finishedAt).not.toBeNull();
     expect(row.errorSummary).toContain('stopped responding');
   });
+
+  it('cancels a queued scan that expired before the agent claimed it', async () => {
+    const { token, deviceId } = await pairedDevice();
+    const job = await prisma.scanJob.create({
+      data: {
+        deviceId,
+        state: 'QUEUED',
+        createdAt: new Date(Date.now() - 16 * 60 * 1000),
+      },
+    });
+
+    await poll(token);
+
+    const row = await prisma.scanJob.findUniqueOrThrow({ where: { id: job.id } });
+    expect(row.state).toBe('CANCELLED');
+    expect(row.finishedAt).not.toBeNull();
+    expect(row.errorSummary).toContain('expired');
+  });
 });

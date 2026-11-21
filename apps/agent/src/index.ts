@@ -69,11 +69,31 @@ async function run(): Promise<void> {
           console.error('Ignoring a job that failed validation:', parsed.error.issues[0]?.message);
         } else if (parsed.data.kind === 'scan') {
           console.log(`Scan ${parsed.data.jobId}: reading installed software...`);
+          const startedAt = new Date();
           const applications = await readInventory();
+          const finishedAt = new Date();
           const valid = applications.filter(
             (application) => scannedApplicationSchema.safeParse(application).success,
           );
-          console.log(`Scan ${parsed.data.jobId}: ${valid.length} applications read.`);
+          if (valid.length !== applications.length) {
+            console.warn(
+              `Dropped ${applications.length - valid.length} applications that failed validation.`,
+            );
+          }
+          try {
+            await api.submitScanResults(parsed.data.jobId, {
+              startedAt: startedAt.toISOString(),
+              finishedAt: finishedAt.toISOString(),
+              applications: valid,
+            });
+            console.log(`Scan ${parsed.data.jobId}: submitted ${valid.length} applications.`);
+          } catch (error) {
+            if (error instanceof AgentHttpError && error.status === 409) {
+              console.warn(`Scan ${parsed.data.jobId} was already finalized; continuing.`);
+            } else {
+              throw error;
+            }
+          }
         } else {
           console.log(
             `Claimed ${parsed.data.kind} job ${parsed.data.jobId}; updates arrive on Day 5.`,
