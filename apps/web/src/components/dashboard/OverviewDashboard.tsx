@@ -8,6 +8,7 @@ import { ConnectionBadge } from '@/components/StatusBadge';
 import { useApiResource } from '@/lib/api/use-api-resource';
 import { useAuth } from '@/lib/auth/session';
 import { formatRelativeTime } from '@/lib/format';
+import { ScanNowButton } from './ScanNowButton';
 
 /**
  * The numbers from GET /api/v1/dashboard: application and update counts, the last scan, the
@@ -110,6 +111,7 @@ export function OverviewDashboard() {
             <ConnectionBadge value={dashboard.agent.connection} />
           </div>
           <p className="muted">Last seen {formatRelativeTime(dashboard.agent.lastSeenAt)}.</p>
+          <ScanNowButton deviceId={dashboard.agent.deviceId} onRequested={reload} />
           <p>
             <Link href="/settings">Agent settings</Link>
           </p>
