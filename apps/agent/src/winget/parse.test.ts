@@ -43,14 +43,28 @@ describe('decodeWingetOutput', () => {
 describe('parseWingetList', () => {
   it('reads every installed application from recorded output', () => {
     const rows = parseWingetList(LIST);
-    expect(rows).toHaveLength(284);
+    // Recorded from a real Windows PC: one row per line of `winget list`. Update this number only
+    // together with the fixture, never to make a red test green.
+    expect(rows).toHaveLength(283);
     expect(rows.find((row) => row.packageId === 'Google.AntigravityIDE')).toEqual({
       displayName: 'Antigravity (User)',
       packageId: 'Google.AntigravityIDE',
       version: '1.16.5',
-      availableVersion: '2.7.0',
+      availableVersion: '2.8.0',
       source: 'winget',
     });
+  });
+
+  it('treats ARP and MSIX registry keys as unmatched instead of package ids', () => {
+    // Modern WinGet reports identifiers like ARP\User\X64\<hash> and MSIX\<name>_<hash> for
+    // applications it cannot match. They contain backslashes and braces, can never be a package id,
+    // and cannot be upgraded with `winget --id`, so they must arrive as unmatched rows.
+    const rows = parseWingetList(LIST);
+    const arpOrMsix = rows.filter((row) => !row.packageId && row.version !== null);
+
+    expect(arpOrMsix.length).toBeGreaterThan(0);
+    expect(arpOrMsix.some((row) => row.displayName.startsWith('Xbox'))).toBe(true);
+    expect(rows.some((row) => (row.packageId ?? '').includes('\\'))).toBe(false);
   });
 
   it('keeps the full name when it contains spaces and brackets', () => {
@@ -90,11 +104,13 @@ describe('parseWingetList', () => {
 });
 
 describe('parseWingetUpgrade', () => {
-  it('reads the rows and skips the trailing count', () => {
+  it('reads one row per upgrade and skips the trailing count', () => {
     const rows = parseWingetUpgrade(UPGRADE);
-    expect(rows).toHaveLength(42);
+    // The fixture ends with "43 upgrades available.", so the count line and the row count agree.
+    expect(rows).toHaveLength(43);
+    expect(rows.every((row) => row.availableVersion !== null)).toBe(true);
     const git = rows.find((row) => row.packageId === 'Git.Git');
-    expect(git?.availableVersion).toBe('2.56.0.4');
+    expect(git?.availableVersion).toBe('2.56.1');
   });
 });
 
@@ -105,9 +121,9 @@ describe('parseWingetTable edge cases', () => {
 
   it('still reads a row whose name was truncated by a narrow console', () => {
     const rows = parseWingetTable(
-      'Microsoft Visual Stu…   Microsoft.VisualStudioCode   1.85.1   1.86.0   winget\n',
+      'Microsoft Visual Stuâ€¦   Microsoft.VisualStudioCode   1.85.1   1.86.0   winget\n',
     );
-    expect(rows[0].displayName).toBe('Microsoft Visual Stu…');
+    expect(rows[0].displayName).toBe('Microsoft Visual Stuâ€¦');
     expect(rows[0].availableVersion).toBe('1.86.0');
   });
 
@@ -124,13 +140,24 @@ describe('mergeScannedApplications', () => {
       parseWingetUpgrade(UPGRADE),
     );
 
-    expect(applications).toHaveLength(222);
+    // 283 installed rows collapse to 228 identities: WinGet lists the same application once per
+    // scope, so name + version repeats.
+    expect(applications).toHaveLength(228);
+    expect(applications.length).toBeLessThan(parseWingetList(LIST).length);
+
+    // The API keys rows by identity, so two applications sharing a package id would collapse to
+    // one row (and used to produce a duplicate-key 500). The parser must never send that.
+    const packageIds = applications
+      .map((application) => application.packageId)
+      .filter((value): value is string => value !== null);
+    expect(new Set(packageIds).size).toBe(packageIds.length);
+
     const git = applications.find((application) => application.packageId === 'Git.Git');
     expect(git).toEqual({
       displayName: 'Git',
       publisher: null,
       installedVersion: '2.53.0',
-      availableVersion: '2.56.0.4',
+      availableVersion: '2.56.1',
       packageId: 'Git.Git',
       source: 'winget',
       architecture: null,
