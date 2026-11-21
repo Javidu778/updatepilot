@@ -78,13 +78,14 @@ export async function interruptExpiredJobs(deviceId: string, now: Date): Promise
  * so only one of them receives the job. No transaction and no row lock are needed for that.
  */
 export async function claimNextJob(deviceId: string, now: Date): Promise<AgentJob | null> {
+  // Scans first: they are quick, and a stale inventory makes an update decision worse.
   for (let attempt = 0; attempt < 3; attempt++) {
     const next = await prisma.scanJob.findFirst({
       where: { deviceId, state: 'QUEUED' },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: { id: true },
     });
-    if (!next) return null;
+    if (!next) break;
 
     const claimed = await prisma.scanJob.updateMany({
       where: { id: next.id, state: 'QUEUED' },
@@ -94,8 +95,31 @@ export async function claimNextJob(deviceId: string, now: Date): Promise<AgentJo
     if (claimed.count === 1) return { kind: 'scan', jobId: next.id };
     // Somebody else claimed it between the read and the update. Try the next row.
   }
-  return null;
 
-  // Week 4 adds update jobs here: same compare-and-set on UpdateJob, and the job payload is
-  // built from packageId + targetVersion + source: 'winget'.
+  // Then updates, with the same compare-and-set.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const next = await prisma.updateJob.findFirst({
+      where: { deviceId, state: 'QUEUED' },
+      orderBy: [{ requestedAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, packageId: true, targetVersion: true },
+    });
+    if (!next) return null;
+
+    const claimed = await prisma.updateJob.updateMany({
+      where: { id: next.id, state: 'QUEUED' },
+      data: { state: 'RUNNING', startedAt: now },
+    });
+
+    if (claimed.count === 1) {
+      // The payload the agent receives: only these four fields, and `winget` as the only source.
+      return {
+        kind: 'upgrade',
+        jobId: next.id,
+        packageId: next.packageId,
+        targetVersion: next.targetVersion,
+        source: 'winget',
+      };
+    }
+  }
+  return null;
 }

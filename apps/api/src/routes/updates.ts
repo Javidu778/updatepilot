@@ -1,16 +1,19 @@
 import { Router } from 'express';
 import {
+  executeUpdateRequestSchema,
   updatePreviewSchema,
   updatesQuerySchema,
   type UpdateCandidate,
   type UpdatePreview,
   type UpdatesQuery,
 } from '@updatepilot/shared';
-import { csrfProtection, getOwnedApplication, requireAuth } from '../auth';
+import { csrfProtection, getOwnedApplication, requireAuth, writeAudit } from '../auth';
+import { toUpdateJob } from '../inventory/serialize';
 import { AppError } from '../lib/errors';
 import { prisma } from '../lib/prisma';
 import { noStore } from '../middleware/no-store';
 import { getValidated, validate } from '../middleware/validate';
+import { executeUpdate } from '../updates/execute';
 import { createPreviewToken } from '../updates/preview';
 import type { Prisma } from '../../generated/prisma/client';
 
@@ -182,6 +185,40 @@ export function updatesRouter(): Router {
 
     res.json(updatePreviewSchema.parse(body));
   });
+
+  // POST /api/v1/updates/:id/execute: the user confirmed the dialog. Queues the job for the agent.
+  router.post(
+    '/:id/execute',
+    requireAuth,
+    csrfProtection,
+    validate({ body: executeUpdateRequestSchema }),
+    async (req, res) => {
+      const userId = req.auth!.user.id;
+      const application = await getOwnedApplication(userId, String(req.params.id));
+      const { previewToken } = getValidated<{ body: { previewToken: string } }>(res).body;
+
+      const job = await executeUpdate({ userId, application, previewToken });
+
+      await writeAudit(
+        {
+          actorType: 'USER',
+          actorUserId: userId,
+          deviceId: job.deviceId,
+          eventType: 'UPDATE_CONFIRMED',
+          targetType: 'update_job',
+          targetId: job.id,
+          metadata: {
+            packageId: job.packageId,
+            fromVersion: job.fromVersion,
+            targetVersion: job.targetVersion,
+          },
+        },
+        req.log,
+      );
+
+      res.status(202).json(toUpdateJob(job));
+    },
+  );
 
   return router;
 }

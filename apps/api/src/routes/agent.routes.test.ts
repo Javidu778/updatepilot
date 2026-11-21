@@ -158,4 +158,47 @@ describe.skipIf(!hasDatabase)('agent job channel (database)', () => {
     expect(row.finishedAt).not.toBeNull();
     expect(row.errorSummary).toContain('expired');
   });
+
+  it('hands out an update job with only the allowlisted fields', async () => {
+    const { token, deviceId, userId } = await pairedDevice();
+
+    const application = await prisma.application.create({
+      data: {
+        deviceId,
+        appKey: `pkg:test.app.${randomUUID()}`,
+        displayName: 'Test App',
+        installedVersion: '1.0.0',
+        availableVersion: '1.1.0',
+        packageId: 'Test.App',
+        source: 'winget',
+        matchStatus: 'MATCHED',
+        updateStatus: 'UPDATE_AVAILABLE',
+      },
+    });
+
+    const job = await prisma.updateJob.create({
+      data: {
+        applicationId: application.id,
+        deviceId,
+        packageId: 'Test.App',
+        fromVersion: '1.0.0',
+        targetVersion: '1.1.0',
+        initiatedById: userId,
+        state: 'QUEUED',
+      },
+    });
+
+    const res = await poll(token);
+    expect(res.body.job).toEqual({
+      kind: 'upgrade',
+      jobId: job.id,
+      packageId: 'Test.App',
+      targetVersion: '1.1.0',
+      source: 'winget',
+    });
+
+    const row = await prisma.updateJob.findUniqueOrThrow({ where: { id: job.id } });
+    expect(row.state).toBe('RUNNING');
+    expect(row.startedAt).not.toBeNull();
+  });
 });
