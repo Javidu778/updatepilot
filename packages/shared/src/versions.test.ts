@@ -3,20 +3,40 @@ import { compareVersions, isNewerVersion, isSameVersion, parseVersion } from './
 
 describe('parseVersion', () => {
   it('reads a plain version', () => {
-    expect(parseVersion('2.56.1')).toEqual({ numbers: [2, 56, 1], preRelease: null });
+    expect(parseVersion('2.56.1')).toEqual({
+      numbers: [2, 56, 1],
+      preRelease: null,
+      bound: 'exact',
+    });
   });
 
   it('ignores a trailing build in brackets, which WinGet reports for some packages', () => {
-    expect(parseVersion('5.17.11 (34827)')).toEqual({ numbers: [5, 17, 11], preRelease: null });
-    expect(parseVersion('7.2.5 (51704)')).toEqual({ numbers: [7, 2, 5], preRelease: null });
+    expect(parseVersion('5.17.11 (34827)')).toEqual({
+      numbers: [5, 17, 11],
+      preRelease: null,
+      bound: 'exact',
+    });
+    expect(parseVersion('7.2.5 (51704)')).toEqual({
+      numbers: [7, 2, 5],
+      preRelease: null,
+      bound: 'exact',
+    });
   });
 
   it('keeps a pre-release suffix', () => {
-    expect(parseVersion('1.0.0-beta.2')).toEqual({ numbers: [1, 0, 0], preRelease: 'beta.2' });
+    expect(parseVersion('1.0.0-beta.2')).toEqual({
+      numbers: [1, 0, 0],
+      preRelease: 'beta.2',
+      bound: 'exact',
+    });
   });
 
   it('tolerates surrounding whitespace', () => {
-    expect(parseVersion('  23.01  ')).toEqual({ numbers: [23, 1], preRelease: null });
+    expect(parseVersion('  23.01  ')).toEqual({
+      numbers: [23, 1],
+      preRelease: null,
+      bound: 'exact',
+    });
   });
 
   it('refuses anything without a number', () => {
@@ -59,6 +79,35 @@ describe('compareVersions', () => {
     expect(compareVersions('Unknown', '2.0.0')).toBeNull();
     expect(compareVersions('2.0.0', 'Unknown')).toBeNull();
     expect(compareVersions(null, '2.0.0')).toBeNull();
+  });
+});
+
+describe('bounded versions', () => {
+  it('reads the bound WinGet reports when it cannot see the exact version', () => {
+    // Real case: the Python Launcher reports "< 3.14.7".
+    expect(parseVersion('< 3.14.7')).toEqual({
+      numbers: [3, 14, 7],
+      preRelease: null,
+      bound: 'upper',
+    });
+    expect(parseVersion('>= 2.0')?.bound).toBe('lower');
+  });
+
+  it('proves an update when the exact version is above the bound', () => {
+    expect(isNewerVersion('3.15.2', '< 3.14.7')).toBe(true);
+    expect(isNewerVersion('3.14.7', '< 3.14.7')).toBe(true);
+  });
+
+  it('refuses to order a bound it cannot place', () => {
+    // 3.13.0 may or may not be newer than "something below 3.14.7".
+    expect(isNewerVersion('3.13.0', '< 3.14.7')).toBeNull();
+    expect(compareVersions('< 3.14.7', '< 3.15')).toBeNull();
+    expect(isNewerVersion('< 3.15', '3.14.7')).toBeNull();
+  });
+
+  it('proves an update when the bound is above the exact version', () => {
+    expect(isNewerVersion('> 2.0', '1.9.9')).toBe(true);
+    expect(isNewerVersion('> 2.0', '2.1.0')).toBeNull();
   });
 });
 

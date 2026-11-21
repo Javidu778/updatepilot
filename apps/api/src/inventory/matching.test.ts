@@ -106,6 +106,14 @@ describe('deriveStatuses', () => {
     ).toBe('UNKNOWN');
   });
 
+  it('still finds an update when WinGet only reports a bound', () => {
+    // Real case: the Python Launcher reports "< 3.14.7", which is enough to prove 3.15.2 is newer.
+    expect(
+      deriveStatuses({ ...matched, installedVersion: '< 3.14.7', availableVersion: '3.15.2' })
+        .updateStatus,
+    ).toBe('UPDATE_AVAILABLE');
+  });
+
   it('never claims a status for an application without a package id', () => {
     expect(
       deriveStatuses({
