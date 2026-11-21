@@ -2,7 +2,7 @@
 
 Software update intelligence and management for Windows. A web dashboard and a local Windows agent discover installed applications, find available updates through WinGet, and run updates only after the user confirms them.
 
-> **Status: Week 2 complete (web application).** Sign-in and sessions, the devices/dashboard/inventory APIs, and the Overview dashboard, Applications inventory and application detail pages all work against seeded data. Scanning, pairing and updating are **not built yet** — those are Week 3 and Week 4. See [Status](#status).
+> **Status: Week 3 complete (agent and scanning).** A Windows agent pairs with a one-time code, reads the machine with WinGet and reports real scan results, so the dashboard shows the software actually installed instead of seeded sample data. Running updates is **not built yet** — that is Week 4. See [Status](#status).
 
 ## How it fits together
 
@@ -60,17 +60,20 @@ The sidebar of the web app shows **API online** when it can reach the API.
 
 Run from the repo root.
 
-| Command                         | What it does                                                |
-| ------------------------------- | ----------------------------------------------------------- |
-| `npm run dev`                   | API (port 4000) and web app (port 3000) with live reload    |
-| `npm run lint`                  | ESLint for the whole repo                                   |
-| `npm run format`                | Format with Prettier. `format:check` only checks            |
-| `npm run typecheck`             | TypeScript checks in every workspace                        |
-| `npm test`                      | Unit and API tests in every workspace                       |
-| `npm run build`                 | Production build of the web app                             |
-| `npm run verify`                | Everything CI runs: lint, format check, types, tests, build |
-| `npm run db:up` / `db:down`     | Start or stop PostgreSQL in Docker                          |
-| `npm run db:studio -w apps/api` | Browse the database in Prisma Studio                        |
+| Command                         | What it does                                                      |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `npm run dev`                   | API (port 4000) and web app (port 3000) with live reload          |
+| `npm run lint`                  | ESLint for the whole repo                                         |
+| `npm run format`                | Format with Prettier. `format:check` only checks                  |
+| `npm run typecheck`             | TypeScript checks in every workspace                              |
+| `npm test`                      | Unit and API tests in every workspace                             |
+| `npm run build`                 | Production build of the web app                                   |
+| `npm run verify`                | Everything CI runs: lint, format check, types, tests, build       |
+| `npm run db:up` / `db:down`     | Start or stop PostgreSQL in Docker                                |
+| `npm run db:studio -w apps/api` | Browse the database in Prisma Studio                              |
+| `npm run agent:setup`           | Pair this Windows PC: creates a code, pairs, prints the next step |
+| `npm run scan`                  | Queue a scan and watch the job until it finishes                  |
+| `npm start -w apps/agent`       | Run the agent and leave it polling                                |
 
 Run `npm run verify` before opening a pull request. It needs the Prisma client, so run `npm run db:generate -w apps/api` once first.
 
@@ -80,7 +83,7 @@ Run `npm run verify` before opening a pull request. It needs the Prisma client, 
 apps/
   api/        Express API, Prisma schema, migrations, seed data
   web/        Next.js dashboard (App Router, Tailwind CSS)
-  agent/      Windows agent (Week 3)
+  agent/      Windows agent: pairing, WinGet parsing, poll loop
 packages/
   shared/     Zod schemas, types and the job state machine used by all three
 docs/         Scope, wireframes, design system, ERD, API contracts, threat model
@@ -89,18 +92,20 @@ scripts/      Small repo tooling scripts
 
 ## Documentation
 
-| Document                                           | Contents                                  |
-| -------------------------------------------------- | ----------------------------------------- |
-| [`docs/scope.md`](docs/scope.md)                   | MVP scope, requirements, user journeys    |
-| [`docs/team.md`](docs/team.md)                     | Roles, branching and pull request rules   |
-| [`docs/decisions.md`](docs/decisions.md)           | Technical decisions and their reasons     |
-| [`docs/wireframes.md`](docs/wireframes.md)         | Wireframes for all six sections           |
-| [`docs/design-system.md`](docs/design-system.md)   | Colors, type, components, accessibility   |
-| [`docs/erd.md`](docs/erd.md)                       | Database design                           |
-| [`docs/openapi.yaml`](docs/openapi.yaml)           | API contract (also served at `/api/docs`) |
-| [`docs/job-states.md`](docs/job-states.md)         | Job state machine                         |
-| [`docs/agent-protocol.md`](docs/agent-protocol.md) | How the agent talks to the API            |
-| [`docs/threat-model.md`](docs/threat-model.md)     | Threats and mitigations                   |
+| Document                                           | Contents                                       |
+| -------------------------------------------------- | ---------------------------------------------- |
+| [`docs/wireframes.md`](docs/wireframes.md)         | Wireframes for all six sections                |
+| [`docs/design-system.md`](docs/design-system.md)   | Colors, type, components, accessibility        |
+| [`docs/erd.md`](docs/erd.md)                       | Database design                                |
+| [`docs/openapi.yaml`](docs/openapi.yaml)           | API contract (also served at `/api/docs`)      |
+| [`docs/job-states.md`](docs/job-states.md)         | Job state machine                              |
+| [`docs/agent-protocol.md`](docs/agent-protocol.md) | How the agent talks to the API                 |
+| [`docs/agent.md`](docs/agent.md)                   | Agent setup, security, limits, troubleshooting |
+| [`docs/scans.md`](docs/scans.md)                   | Scans: endpoints, appKey rule, statuses        |
+| [`docs/auth.md`](docs/auth.md)                     | Sessions, cookies, CSRF, rate limits           |
+| [`docs/inventory-api.md`](docs/inventory-api.md)   | Inventory endpoints and their rules            |
+| [`docs/inventory-ui.md`](docs/inventory-ui.md)     | Dashboard and inventory screens                |
+| [`docs/threat-model.md`](docs/threat-model.md)     | Threats and mitigations                        |
 
 ## Design tokens
 
@@ -120,7 +125,7 @@ Every pull request runs `.github/workflows/ci.yml`: install, generate the Prisma
 | API shell: config, errors, validation, health, docs          | Done                            |
 | Web shell: layout, navigation, themes, six placeholder pages | Done                            |
 | Authentication, inventory API and UI                         | Done                            |
-| Agent pairing, scanning, WinGet integration                  | Week 3                          |
+| Agent pairing, scanning, WinGet integration                  | Done (Week 3)                   |
 | Update workflow and verification                             | Week 4                          |
 | Security tests, accessibility audit, exports                 | Week 5                          |
 | Packaging, documentation, demo                               | Week 6                          |
@@ -139,10 +144,13 @@ Known gaps in the shell, planned for later weeks: mobile navigation is a scrolli
 | `npm run typecheck` fails on `generated/prisma`           | Run `npm run db:generate -w apps/api`                                                      |
 | ESLint peer dependency error mentioning `typescript`      | The root project uses TypeScript 6 because typescript-eslint does not support 7 yet        |
 | CI fails at `npm ci` with a lockfile error                | Run `npm install` locally and commit the updated `package-lock.json`                       |
+| Agent exits with `No credential found`                    | The PC is not paired. Run `npm run agent:setup`, then `npm start -w apps/agent`            |
+| Dashboard still shows "Sample data"                       | The seeded sample device still exists. Delete the `SAMPLE DEVICE` row in Prisma Studio     |
+| Scan says "already queued or running"                     | One scan per device at a time. Wait about 10 s, then scan again                            |
 
 ## Contributing
 
-Work on a branch, open a pull request, and wait for `verify` to pass. Read [`docs/team.md`](docs/team.md) for branch names, commit messages and the definition of done. Never commit `.env` or any real credential. This repository is public.
+Work on a branch, open a pull request, and wait for `verify` to pass. Use branch names of the form `feat/<module>`, `fix/<module>` or `docs/<module>`, and write conventional commit messages. Never commit `.env` or any real credential. This repository is public.
 
 ## License
 
