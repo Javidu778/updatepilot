@@ -73,6 +73,11 @@ jobs:
 
   # Informational: reports known vulnerabilities in dependencies (threat model T-19).
   # Not a required check, so a third-party advisory never blocks a merge.
+  #
+  # A red run here does not mean the pull request is unsafe. It currently reports one accepted
+  # advisory in the Prisma CLI (effect, GHSA-7589-6fvf-x4pw), which runs only at build time on our
+  # own schema file. The reasoning and the revisit trigger are in docs/threat-model.md.
+  # `verify` is the required check.
   audit:
     name: audit
     runs-on: ubuntu-latest
