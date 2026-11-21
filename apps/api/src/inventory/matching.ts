@@ -1,4 +1,4 @@
-import type { MatchStatus, UpdateStatus } from '@updatepilot/shared';
+import { isNewerVersion, type MatchStatus, type UpdateStatus } from '@updatepilot/shared';
 
 /**
  * How an installed application is identified across scans.
@@ -32,8 +32,10 @@ export function appKeyFor(input: {
 /**
  * The statuses the UI colours and filters by.
  *
- * Day 4 compares versions only for equality. Day 5 replaces that with real version ordering and
- * release metadata, which is why this function exists on its own.
+ * The update status comes from comparing the two versions properly (see `versions.ts` in the shared
+ * package), not from testing them for inequality: a lower "available" version would otherwise be
+ * offered as an upgrade. When either version cannot be read, the status is UNKNOWN and the UI says
+ * so, rather than claiming an update exists.
  */
 export function deriveStatuses(input: {
   packageId: string | null;
@@ -49,10 +51,11 @@ export function deriveStatuses(input: {
 
   if (matchStatus !== 'MATCHED') return { matchStatus, updateStatus: 'UNKNOWN' };
 
+  if (!input.availableVersion) return { matchStatus, updateStatus: 'UP_TO_DATE' };
+
+  const newer = isNewerVersion(input.availableVersion, input.installedVersion);
   const updateStatus: UpdateStatus =
-    input.availableVersion && input.availableVersion !== input.installedVersion
-      ? 'UPDATE_AVAILABLE'
-      : 'UP_TO_DATE';
+    newer === null ? 'UNKNOWN' : newer ? 'UPDATE_AVAILABLE' : 'UP_TO_DATE';
 
   return { matchStatus, updateStatus };
 }
