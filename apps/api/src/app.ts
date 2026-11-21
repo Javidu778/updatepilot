@@ -14,6 +14,7 @@ import { applicationsRouter } from './routes/applications';
 import { dashboardRouter } from './routes/dashboard';
 import { devicesRouter } from './routes/devices';
 import { healthRouter } from './routes/health';
+import { updatesRouter } from './routes/updates';
 import { agentRouter } from './routes/agent';
 import { scansRouter } from './routes/scans';
 
@@ -87,6 +88,7 @@ export function createApp({
   app.use('/api/v1/applications', applicationsRouter());
   app.use('/api/v1/agent', agentRouter());
   app.use('/api/v1', scansRouter());
+  app.use('/api/v1/updates', updatesRouter());
 
   extraRoutes?.(app);
 

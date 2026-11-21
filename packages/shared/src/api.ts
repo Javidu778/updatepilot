@@ -246,6 +246,8 @@ export const updatesQuerySchema = paginationQuerySchema.extend({
   deviceId: z.uuid().optional(),
 });
 export const updatesResponseSchema = paginatedSchema(updateCandidateSchema);
+export type UpdateCandidate = z.infer<typeof updateCandidateSchema>;
+export type UpdatesQuery = z.infer<typeof updatesQuerySchema>;
 
 export const updatePreviewSchema = z.object({
   applicationId: z.uuid(),
