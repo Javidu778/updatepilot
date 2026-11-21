@@ -109,6 +109,7 @@ model User {
   scanJobs     ScanJob[]
   updateJobs   UpdateJob[]
   auditEvents  AuditEvent[]
+  previewTokens PreviewToken[]
 }
 
 // Server-side login session. The browser holds only a random token in an httpOnly cookie.
@@ -213,6 +214,7 @@ model Application {
 
   snapshots  ApplicationSnapshot[]
   updateJobs UpdateJob[]
+  previewTokens PreviewToken[]
 
   @@unique([deviceId, appKey])
   @@index([deviceId, displayName])
@@ -321,6 +323,34 @@ model UpdateJob {
   @@unique([deviceId, idempotencyKey])
   @@index([applicationId, requestedAt])
   @@index([deviceId, state])
+}
+
+// ---------------------------------------------------------------------------
+// Update previews
+// ---------------------------------------------------------------------------
+
+// What the user was shown before they confirmed. A preview token is opaque, random and stored only
+// as a hash, so it cannot be guessed, cannot be replayed, and needs no signing key to rotate.
+model PreviewToken {
+  id            String      @id @default(uuid()) @db.Uuid
+  // SHA-256 of the token handed to the browser. The raw token is never stored.
+  tokenHash     String      @unique
+  userId        String      @db.Uuid
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applicationId String      @db.Uuid
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  // Bound to exactly what was shown: a changed target version must invalidate the preview.
+  packageId     String
+  source        String
+  fromVersion   String
+  targetVersion String
+  expiresAt     DateTime
+  // Set when the token is spent, so a second execute with the same token cannot run.
+  usedAt        DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ---------------------------------------------------------------------------
