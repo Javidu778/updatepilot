@@ -4,18 +4,32 @@ import { csrfProtection, getOwnedDevice, requireAuth, writeAudit } from '../auth
 import { toScanJob } from '../inventory/scan';
 import { AppError } from '../lib/errors';
 import { prisma } from '../lib/prisma';
+import { createRateLimiter } from '../middleware/rate-limit';
 import { noStore } from '../middleware/no-store';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ACTIVE_STATES = ['QUEUED', 'RUNNING'] as const;
 
+export type ScansRouterOptions = {
+  /** Scan requests per user per hour. Default 30. */
+  scanLimit?: number;
+};
+
 /** Mount at /api/v1. Holds the user-facing scan routes (the agent's own routes live in agent.ts). */
-export function scansRouter(): Router {
+export function scansRouter(options: ScansRouterOptions = {}): Router {
   const router = Router();
   router.use(noStore);
 
+  // A scan is cheap for us but not for the machine: each one runs WinGet. One user cannot queue
+  // them faster than they can be served, so a per-user limit replaces an earlier gap.
+  const scanLimiter = createRateLimiter({
+    windowMs: 60 * 60 * 1000,
+    limit: options.scanLimit ?? 30,
+    key: (req) => `scan:${req.auth?.user.id ?? 'unknown'}`,
+  });
+
   // POST /api/v1/devices/:id/scans: queue a scan for one of the caller's devices.
-  router.post('/devices/:id/scans', requireAuth, csrfProtection, async (req, res) => {
+  router.post('/devices/:id/scans', requireAuth, csrfProtection, scanLimiter, async (req, res) => {
     const userId = req.auth!.user.id;
     const device = await getOwnedDevice(userId, String(req.params.id));
 

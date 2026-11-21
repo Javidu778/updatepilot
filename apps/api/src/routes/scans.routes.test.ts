@@ -296,4 +296,40 @@ describe.skipIf(!hasDatabase)('scan routes (database)', () => {
       .send(payload);
     expect(second.status).toBe(409);
   });
+
+  it('limits how many scans one user can queue per hour', async () => {
+    const session = await signedIn();
+    const { deviceId } = await deviceFor(session);
+
+    // A small limit on purpose, so the test does not have to queue thirty scans.
+    const { scansRouter } = await import('./scans');
+    const { errorHandler } = await import('../middleware/error-handler');
+    const { notFound } = await import('../middleware/not-found');
+
+    const limited = express();
+    limited.use((req, _res, next) => {
+      Object.assign(req, {
+        id: randomUUID(),
+        log: { error: () => undefined, info: () => undefined, warn: () => undefined },
+      });
+      next();
+    });
+    limited.use(express.json());
+    limited.use('/api/v1', scansRouter({ scanLimit: 2 }));
+    limited.use(notFound);
+    limited.use(errorHandler);
+
+    const attempt = () =>
+      request(limited)
+        .post(`/api/v1/devices/${deviceId}/scans`)
+        .set('Cookie', session.cookie)
+        .set('X-CSRF-Token', session.csrfToken);
+
+    expect((await attempt()).status).toBe(202); // first scan queued
+    expect((await attempt()).status).toBe(409); // blocked by the active scan, but counted
+
+    const limitedResponse = await attempt();
+    expect(limitedResponse.status).toBe(429);
+    expect(limitedResponse.body.error.code).toBe('RATE_LIMITED');
+  });
 });
