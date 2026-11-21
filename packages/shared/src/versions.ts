@@ -17,12 +17,21 @@ export type ParsedVersion = {
   numbers: number[];
   /** Everything after the numbers, for example "beta.2". Null for a plain release. */
   preRelease: string | null;
+  /**
+   * How the version relates to its numbers.
+   *
+   * WinGet sometimes cannot read the exact installed version and reports a bound instead, for
+   * example "< 3.14.7" (the Python Launcher). That still carries information: the version is
+   * *below* 3.14.7, which is enough to prove a 3.15.2 update applies, and not enough to order it
+   * against 3.13.0.
+   */
+  bound: 'exact' | 'upper' | 'lower';
 };
 
 // A leading run of digits, optionally repeated as dot-separated groups. Anything after it is the
 // pre-release part. A bracketed build suffix is stripped first, because it is not part of the version.
 const BUILD_SUFFIX = /\s*\([^)]*\)\s*$/;
-const VERSION_SHAPE = /^(\d+(?:\.\d+)*)(?:[-+~]?([0-9A-Za-z][0-9A-Za-z.\-]*))?$/;
+const VERSION_SHAPE = /^(<=|>=|<|>|=)?\s*(\d+(?:\.\d+)*)(?:[-+~]?([0-9A-Za-z][0-9A-Za-z.\-]*))?$/;
 
 /** Returns null when the text has no usable version in it, such as "Unknown". */
 export function parseVersion(value: string | null | undefined): ParsedVersion | null {
@@ -33,10 +42,19 @@ export function parseVersion(value: string | null | undefined): ParsedVersion | 
   const match = VERSION_SHAPE.exec(cleaned);
   if (!match) return null;
 
-  const numbers = match[1].split('.').map((part) => Number.parseInt(part, 10));
+  const numbers = match[2].split('.').map((part) => Number.parseInt(part, 10));
   if (numbers.some((part) => !Number.isFinite(part))) return null;
 
-  return { numbers, preRelease: match[2] ?? null };
+  // "<=" and ">=" are treated as strict: a bound is only ever used to prove a comparison, and
+  // being strict keeps that proof valid.
+  const bound: ParsedVersion['bound'] =
+    match[1] === '<' || match[1] === '<='
+      ? 'upper'
+      : match[1] === '>' || match[1] === '>='
+        ? 'lower'
+        : 'exact';
+
+  return { numbers, preRelease: match[3] ?? null, bound };
 }
 
 /** Numeric-aware comparison of two pre-release strings: "beta.2" < "beta.10". */
@@ -77,6 +95,34 @@ export function compareVersions(
   const right = parseVersion(b);
   if (!left || !right) return null;
 
+  // A bound only answers when the answer is certain. "< 3.14.7" is below 3.15.2, so the update
+  // applies; it cannot be ordered against 3.13.0, so that answer is null.
+  if (left.bound !== 'exact' || right.bound !== 'exact') {
+    if (left.bound === right.bound) return null;
+    const leftIsExact = left.bound === 'exact';
+    const bounded = leftIsExact ? right : left;
+    const exact = leftIsExact ? left : right;
+
+    // The bound's own numbers compared with the exact version.
+    const boundVsExact = compareExact(bounded, exact);
+    if (boundVsExact === null) return null;
+
+    if (bounded.bound === 'upper') {
+      // bounded < boundVsExact's numbers, so the pair is ordered only when those numbers <= exact.
+      if (boundVsExact > 0) return null;
+      return leftIsExact ? 1 : -1;
+    }
+
+    // bounded > its numbers, so the pair is ordered only when those numbers >= exact.
+    if (boundVsExact < 0) return null;
+    return leftIsExact ? -1 : 1;
+  }
+
+  return compareExact(left, right);
+}
+
+/** Compares the numbers and pre-release of two exact versions. */
+function compareExact(left: ParsedVersion, right: ParsedVersion): number | null {
   const length = Math.max(left.numbers.length, right.numbers.length);
   for (let index = 0; index < length; index++) {
     const l = left.numbers[index] ?? 0;
