@@ -29,9 +29,24 @@ const HEADER = /^\s*Name\s+Id\s+Version/i;
 const SEPARATOR = /^\s*-{5,}[\s-]*$/;
 const TRAILING_SUMMARY =
   /^\s*(\d+\s+(upgrade|package)|the following|no installed package|no applicable)/i;
-const SOURCE_VALUES = /^(winget|msstore)$/i;
-const VERSION = /^(unknown|[<>=~^]?\s?v?\d[\w.+-]*)$/i;
 const PACKAGE_ID = /^[A-Za-z0-9][A-Za-z0-9.+_-]{1,127}$/;
+
+/**
+ * A version token. WinGet versions are not tidy: "2.56.1", "1.21.13002.0",
+ * "5.17.11 (34827)" (build in brackets) and the word "Unknown" all occur.
+ */
+const VERSION_TOKEN = String.raw`(?:[<>=~^]?\s?v?\d[\w.+\-]*(?:\s*\([^)]*\))?|Unknown)`;
+
+/**
+ * One or two version tokens at the end of the row: installed, then available.
+ *
+ * The lookbehind matters: without it, the "9" at the end of the ARP display name "Tomcat9" would
+ * be read as a version. A version can only start after whitespace or at the start of the string.
+ */
+const VERSIONS = new RegExp(
+  String.raw`(?<![\w.\-])(${VERSION_TOKEN})(?:\s+(${VERSION_TOKEN}))?$`,
+  'i',
+);
 
 function isNoise(line: string): boolean {
   return (
@@ -39,51 +54,58 @@ function isNoise(line: string): boolean {
   );
 }
 
-function looksLikeVersion(cell: string): boolean {
-  return VERSION.test(cell.trim());
+/** A source column value, when the row ends with one. */
+function splitSource(line: string): { text: string; source: string | null } {
+  const match = /\s+(winget|msstore)\s*$/i.exec(line);
+  if (!match) return { text: line.trim(), source: null };
+  return { text: line.slice(0, match.index).trimEnd(), source: match[1].toLowerCase() };
+}
+
+export function parseWingetTable(output: Buffer | string): WingetRow[] {
+  return splitRows(decodeWingetOutput(output));
 }
 
 /**
- * Turns the table into rows of cells, right-aligning the four known trailing columns.
+ * Parses one table.
  *
- * Cells are separated by two or more spaces, which is safe because a package ID, a version and
- * a source never contain a space, while the name often does ("Microsoft Visual Studio Code (User)").
+ * Rows cannot be split into five equal cells: WinGet does not pad a value that overflows its
+ * column, so the identifier, the installed version and the available version sometimes share one
+ * run of spaces ("Microsoft.SQLServerManagementStudio 19.1"), and an ARP identifier can itself
+ * contain spaces ("ARP\Machine\X64\Apache Tomcat 9.0 Tomcat9").
+ *
+ * What is reliable is the END of the row: the source, then up to two version tokens. So the row is
+ * read from the right, and the identifier is taken from the start of what is left.
  */
-export function parseWingetTable(output: Buffer | string): WingetRow[] {
-  const text = decodeWingetOutput(output);
+function splitRows(text: string): WingetRow[] {
   const rows: WingetRow[] = [];
 
-  for (const line of text.split('\n')) {
-    if (isNoise(line)) continue;
+  for (const rawLine of text.split('\n')) {
+    if (isNoise(rawLine)) continue;
 
-    const cells = line.trim().split(/\s{2,}/);
-    if (cells.length < 2) continue;
+    const { text: line, source } = splitSource(rawLine);
+    const cells = line.split(/\s{2,}/);
+    const displayName = cells[0]?.trim();
+    if (!displayName || cells.length < 2) continue;
 
-    let source: string | null = null;
-    if (cells.length >= 3 && SOURCE_VALUES.test(cells[cells.length - 1])) {
-      source = cells.pop()!.toLowerCase();
-    }
+    const trailing = cells.slice(1).join('  ').trim();
+    const versions = VERSIONS.exec(trailing);
+    const head = versions ? trailing.slice(0, versions.index).trim() : trailing;
 
-    let availableVersion: string | null = null;
-    if (cells.length >= 3 && looksLikeVersion(cells[cells.length - 1])) {
-      // The last version-shaped cell is "Available" only if another version precedes it.
-      if (cells.length >= 3 && looksLikeVersion(cells[cells.length - 2])) {
-        availableVersion = cells.pop()!;
-      }
-    }
+    // The identifier is the first token after the name, when it is a usable package identity.
+    // An ARP/MSIX registry key, or a truncated fragment, is not: those stay unmatched.
+    const firstToken = /^(\S+)/.exec(head);
+    const packageId =
+      firstToken && PACKAGE_ID.test(firstToken[1]) && firstToken[1].includes('.')
+        ? firstToken[1]
+        : null;
 
-    let version: string | null = null;
-    if (cells.length >= 2 && looksLikeVersion(cells[cells.length - 1])) {
-      version = cells.pop()!;
-    }
-
-    const displayName = cells.shift()?.trim();
-    if (!displayName) continue;
-
-    const idCell = cells.shift()?.trim() ?? '';
-    const packageId = PACKAGE_ID.test(idCell) && idCell.includes('.') ? idCell : null;
-
-    rows.push({ displayName, packageId, version, availableVersion, source });
+    rows.push({
+      displayName,
+      packageId,
+      version: versions?.[1]?.trim() ?? null,
+      availableVersion: versions?.[2]?.trim() ?? null,
+      source,
+    });
   }
 
   return rows;

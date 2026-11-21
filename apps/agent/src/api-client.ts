@@ -1,4 +1,9 @@
-import { agentNextJobResponseSchema, pairResponseSchema, type AgentJob } from '@updatepilot/shared';
+import {
+  agentNextJobResponseSchema,
+  pairResponseSchema,
+  type AgentJob,
+  type ScannedApplication,
+} from '@updatepilot/shared';
 
 /** https is required for anything that is not the local development API (protocol §9). */
 export function apiBaseUrl(): string {
@@ -33,6 +38,17 @@ export class AgentApi {
       throw new AgentHttpError(response.status, code, response.headers.get('retry-after'));
     }
     return json;
+  }
+
+  async submitScanResults(
+    jobId: string,
+    results: { startedAt: string; finishedAt: string; applications: ScannedApplication[] },
+  ): Promise<unknown> {
+    return this.request(`/api/v1/agent/scans/${jobId}/results`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(results),
+    });
   }
 
   async pair(input: {

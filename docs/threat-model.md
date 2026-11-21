@@ -90,6 +90,27 @@ Key principle: **the API is not trusted by the agent for what to run.** The agen
 | Agent trusts the OS user account           | Out of scope per assumptions                     | Document that agent token protection depends on the Windows user profile |
 | Package coverage is incomplete             | WinGet does not list every application           | Unmatched and unsupported states; never guess a command                  |
 
+### Accepted advisory: `effect` in the Prisma CLI (GHSA-7589-6fvf-x4pw)
+
+`npm audit --omit=dev --audit-level=high` reports one high-severity advisory:
+
+| Field            | Value                                                                               |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| Package          | `effect <= 3.22.0` (installed 3.20.0)                                               |
+| Advisory         | ReDoS in `Schema.TemplateLiteral` compiled regex                                    |
+| Path             | `prisma` (devDependency) → `@prisma/config` → `effect`                              |
+| Where it runs    | Build and migration time only, on `apps/api/prisma/schema.prisma`, a file we author |
+| Runtime exposure | None: the API server never loads Prisma's CLI or `@prisma/config`                   |
+
+Decision: accepted for now, because it is a build-time tool parsing our own trusted schema, and the
+only offered fix (`npm audit fix --force`) downgrades Prisma 7 to 6, which is a breaking change.
+An `overrides` entry cannot be used: `@prisma/config` pins `effect` to an exact version and npm keeps
+the pinned copy, leaving the tree in an `invalid` state.
+
+Revisit when Prisma ships a release that depends on `effect >= 3.22.1`; then `npm audit` returns to
+zero and this section is deleted. The `audit` job in `.github/workflows/ci.yml` stays informational
+(`continue-on-error`) for this reason, and a red `audit` check does not block a pull request.
+
 ## 7. Verification plan
 
 | Week      | Activity                                                                                                    |

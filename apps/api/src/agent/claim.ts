@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma';
  */
 export const SCAN_LEASE_MS = 10 * 60 * 1000;
 export const UPDATE_LEASE_MS = 30 * 60 * 1000;
+export const QUEUE_EXPIRY_MS = 15 * 60 * 1000;
 
 /**
  * Moves jobs that outlived their lease to INTERRUPTED.
@@ -16,7 +17,31 @@ export const UPDATE_LEASE_MS = 30 * 60 * 1000;
  * (docs/job-states.md).
  */
 export async function interruptExpiredJobs(deviceId: string, now: Date): Promise<number> {
-  const [scans, updates] = await Promise.all([
+  const [queuedScans, queuedUpdates, runningScans, runningUpdates] = await Promise.all([
+    prisma.scanJob.updateMany({
+      where: {
+        deviceId,
+        state: 'QUEUED',
+        createdAt: { lt: new Date(now.getTime() - QUEUE_EXPIRY_MS) },
+      },
+      data: {
+        state: 'CANCELLED',
+        finishedAt: now,
+        errorSummary: 'The scan expired before the agent claimed it.',
+      },
+    }),
+    prisma.updateJob.updateMany({
+      where: {
+        deviceId,
+        state: 'QUEUED',
+        createdAt: { lt: new Date(now.getTime() - QUEUE_EXPIRY_MS) },
+      },
+      data: {
+        state: 'CANCELLED',
+        finishedAt: now,
+        errorSummary: 'The update expired before the agent claimed it.',
+      },
+    }),
     prisma.scanJob.updateMany({
       where: {
         deviceId,
@@ -42,7 +67,7 @@ export async function interruptExpiredJobs(deviceId: string, now: Date): Promise
       },
     }),
   ]);
-  return scans.count + updates.count;
+  return queuedScans.count + queuedUpdates.count + runningScans.count + runningUpdates.count;
 }
 
 /**

@@ -337,3 +337,17 @@
   flex-direction: column;
   gap: var(--space-4);
 }
+
+/* Scan control on the Overview agent card */
+.scan-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+.scan-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  max-width: 32rem;
+}
