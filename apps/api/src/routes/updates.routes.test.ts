@@ -3,7 +3,7 @@ import { config as loadEnv } from 'dotenv';
 import express from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { updateCandidateSchema, updatePreviewSchema } from '@updatepilot/shared';
+import { jobSchema, updateCandidateSchema, updatePreviewSchema } from '@updatepilot/shared';
 
 loadEnv({ path: '../../.env', quiet: true });
 const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.SESSION_SECRET);
@@ -240,5 +240,99 @@ describe.skipIf(!hasDatabase)('update routes (database)', () => {
           .set('Cookie', session.cookie)
       ).status,
     ).toBe(403);
+  });
+
+  async function previewFor(
+    session: { cookie: string[]; csrfToken: string },
+    applicationId: string,
+  ) {
+    const res = await request(app)
+      .post(`/api/v1/updates/${applicationId}/preview`)
+      .set('Cookie', session.cookie)
+      .set('X-CSRF-Token', session.csrfToken);
+    return updatePreviewSchema.parse(res.body);
+  }
+
+  const execute = (
+    session: { cookie: string[]; csrfToken: string },
+    applicationId: string,
+    previewToken: string,
+    withCsrf = true,
+  ) => {
+    const call = request(app)
+      .post(`/api/v1/updates/${applicationId}/execute`)
+      .set('Cookie', session.cookie);
+    return (withCsrf ? call.set('X-CSRF-Token', session.csrfToken) : call).send({ previewToken });
+  };
+
+  it('queues an update from a confirmed preview and spends the token', async () => {
+    const session = await signedIn();
+    const { updatable } = await deviceWithApplications(session);
+    const preview = await previewFor(session, updatable.id);
+
+    const res = await execute(session, updatable.id, preview.previewToken);
+
+    expect(res.status).toBe(202);
+    const job = jobSchema.parse(res.body);
+    expect(job.kind).toBe('update');
+    expect(job.state).toBe('QUEUED');
+    expect(job.packageId).toBe(updatable.packageId);
+    expect(job.fromVersion).toBe('1.0.0');
+    expect(job.targetVersion).toBe('1.1.0');
+
+    const token = await prisma.previewToken.findFirstOrThrow({
+      where: { applicationId: updatable.id },
+    });
+    expect(token.usedAt).not.toBeNull();
+  });
+
+  it('refuses a token that was already spent', async () => {
+    const session = await signedIn();
+    const { updatable } = await deviceWithApplications(session);
+    const preview = await previewFor(session, updatable.id);
+
+    expect((await execute(session, updatable.id, preview.previewToken)).status).toBe(202);
+
+    const second = await execute(session, updatable.id, preview.previewToken);
+    expect(second.status).toBe(422);
+    expect(second.body.error.code).toBe('UPDATE_CHANGED');
+
+    const jobs = await prisma.updateJob.count({ where: { applicationId: updatable.id } });
+    expect(jobs).toBe(1);
+  });
+
+  it('refuses when the update changed since the preview', async () => {
+    const session = await signedIn();
+    const { updatable } = await deviceWithApplications(session);
+    const preview = await previewFor(session, updatable.id);
+
+    // A newer version appeared while the dialog was open.
+    await prisma.application.update({
+      where: { id: updatable.id },
+      data: { availableVersion: '1.2.0' },
+    });
+
+    const res = await execute(session, updatable.id, preview.previewToken);
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('UPDATE_CHANGED');
+    expect(await prisma.updateJob.count({ where: { applicationId: updatable.id } })).toBe(0);
+  });
+
+  it('does not let another user execute a preview', async () => {
+    const owner = await signedIn();
+    const intruder = await signedIn();
+    const { updatable } = await deviceWithApplications(owner);
+    const preview = await previewFor(owner, updatable.id);
+
+    const res = await execute(intruder, updatable.id, preview.previewToken);
+    expect(res.status).toBe(404);
+  });
+
+  it('requires a CSRF token to execute', async () => {
+    const session = await signedIn();
+    const { updatable } = await deviceWithApplications(session);
+    const preview = await previewFor(session, updatable.id);
+
+    expect((await execute(session, updatable.id, preview.previewToken, false)).status).toBe(403);
   });
 });
