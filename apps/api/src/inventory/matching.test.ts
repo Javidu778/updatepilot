@@ -78,6 +78,34 @@ describe('deriveStatuses', () => {
     expect(deriveStatuses({ ...matched, availableVersion: null }).updateStatus).toBe('UP_TO_DATE');
   });
 
+  it('never offers a downgrade as an update', () => {
+    // WinGet occasionally lists a lower "available" version than the installed one.
+    expect(
+      deriveStatuses({ ...matched, installedVersion: '2.45.1', availableVersion: '2.44.0' })
+        .updateStatus,
+    ).toBe('UP_TO_DATE');
+  });
+
+  it('compares versions properly instead of testing for inequality', () => {
+    // Same version written differently is not an update.
+    expect(
+      deriveStatuses({ ...matched, installedVersion: '2.44', availableVersion: '2.44.0' })
+        .updateStatus,
+    ).toBe('UP_TO_DATE');
+    // A numeric comparison, not a text one.
+    expect(
+      deriveStatuses({ ...matched, installedVersion: '2.9.0', availableVersion: '2.10.0' })
+        .updateStatus,
+    ).toBe('UPDATE_AVAILABLE');
+  });
+
+  it('says Unknown rather than guessing when a version cannot be read', () => {
+    expect(
+      deriveStatuses({ ...matched, installedVersion: 'Unknown', availableVersion: '2.8.0' })
+        .updateStatus,
+    ).toBe('UNKNOWN');
+  });
+
   it('never claims a status for an application without a package id', () => {
     expect(
       deriveStatuses({
