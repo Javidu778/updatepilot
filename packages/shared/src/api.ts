@@ -325,6 +325,8 @@ export const historyItemSchema = z.object({
   details: z.record(z.string(), z.unknown()),
 });
 export const historyResponseSchema = paginatedSchema(historyItemSchema);
+export type HistoryQuery = z.infer<typeof historyQuerySchema>;
+export type HistoryItem = z.infer<typeof historyItemSchema>;
 
 // ---------------------------------------------------------------------------
 // Security findings
