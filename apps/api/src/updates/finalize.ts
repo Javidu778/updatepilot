@@ -22,19 +22,21 @@ export type UpdateOutcome = {
 };
 
 export function decideUpdateOutcome(input: UpdateOutcomeInput): UpdateOutcome {
-  if (input.exitCode !== 0) {
-    return {
-      state: 'FAILED',
-      verification: 'NOT_RUN',
-      reason: `WinGet exited with code ${input.exitCode}.`,
-    };
-  }
-
+  // Restart first: 3010 and 1641 are success codes that also mean "restart needed", so checking the
+  // exit code first would report a successful install as FAILED.
   if (input.restartRequired) {
     return {
       state: 'RESTART_REQUIRED',
       verification: 'NOT_RUN',
       reason: 'The installer asked for a restart before the version can be checked.',
+    };
+  }
+
+  if (input.exitCode !== 0) {
+    return {
+      state: 'FAILED',
+      verification: 'NOT_RUN',
+      reason: `WinGet exited with code ${input.exitCode}.`,
     };
   }
 
