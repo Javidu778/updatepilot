@@ -351,6 +351,9 @@ export const securityFindingSchema = z.object({
   lastVerifiedAt: isoDateTime,
 });
 
+export type SecurityFindingsQuery = z.infer<typeof securityFindingsQuerySchema>;
+export type SecurityFinding = z.infer<typeof securityFindingSchema>;
+
 export const securityFindingsResponseSchema = paginatedSchema(securityFindingSchema).extend({
   meta: z.object({
     checkedAt: isoDateTime.nullable(),

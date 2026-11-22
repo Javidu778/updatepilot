@@ -15,6 +15,7 @@ import { dashboardRouter } from './routes/dashboard';
 import { devicesRouter } from './routes/devices';
 import { healthRouter } from './routes/health';
 import { historyRouter } from './routes/history';
+import { securityRouter } from './routes/security';
 import { updatesRouter } from './routes/updates';
 import { agentRouter } from './routes/agent';
 import { scansRouter } from './routes/scans';
@@ -91,6 +92,7 @@ export function createApp({
   app.use('/api/v1', scansRouter());
   app.use('/api/v1/updates', updatesRouter());
   app.use('/api/v1/history', historyRouter());
+  app.use('/api/v1/security', securityRouter());
 
   extraRoutes?.(app);
 
