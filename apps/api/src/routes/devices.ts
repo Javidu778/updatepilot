@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pairRequestSchema } from '@updatepilot/shared';
 import type { z } from 'zod';
-import { csrfProtection, getAuthConfig, requireAuth, writeAudit } from '../auth';
+import { csrfProtection, getAuthConfig, getOwnedDevice, requireAuth, writeAudit } from '../auth';
 import {
   DEFAULT_POLL_INTERVAL_SECONDS,
   generateAgentToken,
@@ -145,6 +145,41 @@ export function devicesRouter(): Router {
       });
     },
   );
+
+  // POST /api/v1/devices/:id/revoke: stop trusting this device and its agent.
+  router.post('/:id/revoke', requireAuth, csrfProtection, async (req, res) => {
+    const userId = req.auth!.user.id;
+    // 404 for a missing device, an invalid id and another user's device alike.
+    const device = await getOwnedDevice(userId, String(req.params.id));
+    const now = new Date();
+
+    const updated = await prisma.$transaction(async (tx) => {
+      // Every credential for the device is revoked, so a stolen token stops working immediately.
+      await tx.agentCredential.updateMany({
+        where: { deviceId: device.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+
+      return tx.device.update({
+        where: { id: device.id },
+        data: { status: 'REVOKED' },
+      });
+    });
+
+    await writeAudit(
+      {
+        actorType: 'USER',
+        actorUserId: userId,
+        deviceId: device.id,
+        eventType: 'DEVICE_REVOKED',
+        targetType: 'device',
+        targetId: device.id,
+      },
+      req.log,
+    );
+
+    res.json(toDevice(updated, now));
+  });
 
   return router;
 }

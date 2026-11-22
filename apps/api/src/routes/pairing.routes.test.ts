@@ -175,6 +175,50 @@ describe.skipIf(!hasDatabase)('pairing routes (database)', () => {
     expect(extra.status).toBe(400);
   });
 
+  it('revokes a device and every credential it holds', async () => {
+    const session = await signIn();
+    const { code } = await requestCode(session);
+    const paired = await request(app)
+      .post('/api/v1/devices/pair')
+      .send({ pairingCode: code, deviceName: 'REVOKE-PC' });
+    expect(paired.status).toBe(201);
+
+    const res = await request(app)
+      .post('/api/v1/devices/' + paired.body.deviceId + '/revoke')
+      .set('Cookie', session.cookie)
+      .set('X-CSRF-Token', session.csrfToken);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('REVOKED');
+    expect(res.body.connection).toBe('revoked');
+
+    const credentials = await prisma.agentCredential.findMany({
+      where: { deviceId: paired.body.deviceId },
+    });
+    expect(credentials).toHaveLength(1);
+    expect(credentials[0].revokedAt).not.toBeNull();
+
+    const events = await prisma.auditEvent.findMany({
+      where: { deviceId: paired.body.deviceId, eventType: 'DEVICE_REVOKED' },
+    });
+    expect(events).toHaveLength(1);
+  });
+
+  it("does not let one user revoke another user's device", async () => {
+    const owner = await signIn();
+    const intruder = await signIn();
+    const { code } = await requestCode(owner);
+    const paired = await request(app)
+      .post('/api/v1/devices/pair')
+      .send({ pairingCode: code, deviceName: 'NOT-YOURS' });
+
+    const res = await request(app)
+      .post('/api/v1/devices/' + paired.body.deviceId + '/revoke')
+      .set('Cookie', intruder.cookie)
+      .set('X-CSRF-Token', intruder.csrfToken);
+
+    expect(res.status).toBe(404);
+  });
   it('records both audit events without storing secrets', async () => {
     const session = await signIn();
     const { code } = await requestCode(session);
