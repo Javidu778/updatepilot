@@ -428,3 +428,34 @@
   margin-top: var(--space-2);
   font-size: var(--text-xs);
 }
+
+/* ---------- Settings & agent ---------- */
+.pair-panel {
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.pair-code {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.pair-steps {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-sm);
+}
+.pair-steps code {
+  overflow-wrap: anywhere;
+}
+.confirm-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
