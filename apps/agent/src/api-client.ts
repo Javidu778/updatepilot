@@ -51,6 +51,34 @@ export class AgentApi {
     });
   }
 
+  /** Tells the server the update started, or that it is now being verified. */
+  async reportProgress(jobId: string, state: 'RUNNING' | 'VERIFYING'): Promise<unknown> {
+    return this.request(`/api/v1/agent/jobs/${jobId}/progress`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state }),
+    });
+  }
+
+  /** Reports the facts of an update. The server decides the outcome, never the agent. */
+  async submitUpdateResult(
+    jobId: string,
+    result: {
+      startedAt: string;
+      finishedAt: string;
+      exitCode: number;
+      restartRequired: boolean;
+      installedVersionAfter: string | null;
+      errorSummary: string | null;
+    },
+  ): Promise<unknown> {
+    return this.request(`/api/v1/agent/updates/${jobId}/result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(result),
+    });
+  }
+
   async pair(input: {
     pairingCode: string;
     deviceName: string;

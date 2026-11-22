@@ -56,6 +56,13 @@ describe('decideUpdateOutcome', () => {
     expect(outcome.reason).toContain('restart');
   });
 
+  it('does not call 3010 a failure: it is success with a restart pending', () => {
+    // Windows Installer 3010 and 1641 mean "installed, restart needed".
+    for (const exitCode of [3010, 1641]) {
+      const outcome = decideUpdateOutcome({ ...base, exitCode, restartRequired: true });
+      expect(outcome.state).toBe('RESTART_REQUIRED');
+    }
+  });
   it('cannot verify when the version could not be read at all', () => {
     const outcome = decideUpdateOutcome({ ...base, installedVersionAfter: null });
     expect(outcome.state).toBe('VERIFICATION_FAILED');

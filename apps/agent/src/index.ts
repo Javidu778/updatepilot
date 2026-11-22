@@ -2,6 +2,7 @@ import * as os from 'node:os';
 import { agentJobSchema, scannedApplicationSchema } from '@updatepilot/shared';
 import { AgentApi, AgentHttpError, apiBaseUrl } from './api-client';
 import { loadAgentToken, saveAgentToken } from './credential-store';
+import { runUpgradeJob } from './upgrade-job';
 import { readInventory } from './winget/run';
 
 const AGENT_VERSION = '0.1.0';
@@ -95,9 +96,8 @@ async function run(): Promise<void> {
             }
           }
         } else {
-          console.log(
-            `Claimed ${parsed.data.kind} job ${parsed.data.jobId}; updates arrive on Day 5.`,
-          );
+          // An update job: the server already decided it is allowed; run exactly what it says.
+          await runUpgradeJob(api, parsed.data);
         }
       }
 
