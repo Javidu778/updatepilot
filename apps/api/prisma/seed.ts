@@ -284,7 +284,9 @@ async function main() {
 
   await prisma.securityFinding.create({
     data: {
-      packageId: 'example.package',
+      // Deliberately a package that only the SAMPLE DEVICE has, so this row can never be read as a
+      // real advisory against the machine you are sitting at.
+      packageId: '7zip.7zip',
       advisoryId: 'SAMPLE-0001',
       severity: 'MEDIUM',
       summary: 'Sample advisory used only to design the Security insights page.',
