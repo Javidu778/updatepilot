@@ -123,7 +123,6 @@ export async function readInstalledVersion(
 /** A version string the shared schema will accept, or null. */
 export function sanitizeVersion(value: string | null | undefined): string | null {
   if (!value) return null;
-  // eslint-disable-next-line no-control-regex
   const cleaned = value
     .replace(/[\u0000-\u001F\u007F]/g, ' ')
     .trim()
@@ -137,7 +136,6 @@ export function summarizeFailure(run: UpgradeRun): string | null {
   if (run.exitCode === 0) return null;
 
   const text = `${run.stderr}\n${run.stdout}`.trim();
-  // eslint-disable-next-line no-control-regex
   const cleaned = text
     .replace(/[\u0000-\u001F\u007F]/g, ' ')
     .replace(/\s+/g, ' ')

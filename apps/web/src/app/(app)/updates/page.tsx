@@ -1,20 +1,19 @@
 import type { Metadata } from 'next';
-import { PlaceholderPage } from '@/components/PlaceholderPage';
+import { UpdateCenter } from '@/components/updates/UpdateCenter';
 
 export const metadata: Metadata = { title: 'Updates' };
+export const instant = false;
 
 export default function UpdatesPage() {
   return (
-    <PlaceholderPage
-      title="Updates"
-      summary="Review available updates, confirm them and watch progress."
-      builtIn="Week 4"
-      planned={[
-        'List of available updates with target versions',
-        'Confirmation dialog showing the exact package and version',
-        'Progress states and post-update verification',
-        'Failure reasons and safe next steps',
-      ]}
-    />
+    <>
+      <div className="page-header">
+        <h1>Updates</h1>
+        <p className="muted">
+          Review each available update and confirm it. Nothing installs until you say so.
+        </p>
+      </div>
+      <UpdateCenter />
+    </>
   );
 }
