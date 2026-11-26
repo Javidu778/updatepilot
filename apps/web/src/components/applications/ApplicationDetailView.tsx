@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/DataStates';
 import { JobStateBadge, MatchStatusBadge, UpdateStatusBadge } from '@/components/StatusBadge';
 import { useApiResource } from '@/lib/api/use-api-resource';
 import { useAuth } from '@/lib/auth/session';
+import { ReleaseRefresh } from './ReleaseRefresh';
 import {
   NOT_AVAILABLE,
   formatDate,
@@ -174,11 +175,14 @@ export function ApplicationDetailView() {
         <section className="card" aria-labelledby="release-heading">
           <h2 id="release-heading">Release information</h2>
           {application.release === null ? (
-            <p className="muted">
-              No release information is available for {formatVersion(application.availableVersion)}.
-              Release data is filled by update checking in Week 4; until then this reads &ldquo;Not
-              available&rdquo; rather than guessing.
-            </p>
+            <>
+              <p className="muted">
+                No release information is available for{' '}
+                {formatVersion(application.availableVersion)}. It is fetched on request from the
+                package&apos;s own release feed, never guessed.
+              </p>
+              <ReleaseRefresh applicationId={application.id} onRefreshed={reload} />
+            </>
           ) : (
             <>
               <dl className="detail-grid">
@@ -187,6 +191,7 @@ export function ApplicationDetailView() {
                 <Field label="Source">{application.release.source}</Field>
                 <Field label="Checked">{formatDate(application.release.fetchedAt)}</Field>
               </dl>
+              <ReleaseRefresh applicationId={application.id} onRefreshed={reload} />
               {application.release.changelogUrl || application.release.officialUrl ? (
                 <p>
                   {application.release.changelogUrl ? (
