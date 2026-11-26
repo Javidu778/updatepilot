@@ -34,16 +34,29 @@ All parameters work together. Anything outside these values returns `400 VALIDAT
 
 ## 3. How values are worked out
 
-| Value                  | Rule                                                                                                                                                                                                                  |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `connection`           | Not stored. `revoked` or `pending` follow the device status. Otherwise: `connected` if the agent was seen within 30 seconds (3 poll intervals), `stale` within 10 minutes, `disconnected` after that or if never seen |
-| Dashboard counts       | Across all of the user's devices, skipping applications marked removed. `updatesAvailable` counts `UPDATE_AVAILABLE`; `unmatched` and `unsupported` count the match status                                            |
-| `lastScanAt`           | Finish time of the latest scan that succeeded. Failed scans are ignored                                                                                                                                               |
-| Dashboard `agent`      | The most recently seen device that is not revoked. If every device is revoked, one of those. With no device: `connection: "pending"` and `deviceId: null`                                                             |
-| `isSample`             | `true` if any included device is sample data, so the UI shows the "Sample data" banner                                                                                                                                |
-| Recent activity        | The 10 newest audit events for the user's devices or actions, newest first. Sign-in events are left out. Text comes from a fixed sentence per event type, never from stored metadata                                  |
-| Detail `release`       | The cached release for the application's available version, or `null`. Only `https` links are passed on; anything else becomes `null`                                                                                 |
-| Detail `updateHistory` | The newest 20 update jobs for that application                                                                                                                                                                        |
+| Value                  | Rule                                                                                                                                                                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connection`           | Not stored. `revoked` or `pending` follow the device status. Otherwise: `connected` if the agent was seen within 30 seconds (3 poll intervals), `stale` within 10 minutes, `disconnected` after that or if never seen                                                                                   |
+| Dashboard counts       | Across all of the user's devices, skipping applications marked removed. `updatesAvailable` counts `UPDATE_AVAILABLE`; `unmatched` and `unsupported` count the match status                                                                                                                              |
+| `lastScanAt`           | Finish time of the latest scan that succeeded. Failed scans are ignored                                                                                                                                                                                                                                 |
+| Dashboard `agent`      | The most recently seen device that is not revoked. If every device is revoked, one of those. With no device: `connection: "pending"` and `deviceId: null`                                                                                                                                               |
+| `isSample`             | `true` if any included device is sample data, so the UI shows the "Sample data" banner                                                                                                                                                                                                                  |
+| Recent activity        | The 10 newest audit events for the user's devices or actions, newest first. Sign-in events are left out. Text comes from a fixed sentence per event type, never from stored metadata                                                                                                                    |
+| Detail `release`       | The cached release for the application's available version. A release feed usually publishes a newer tag than WinGet offers, so the fallback is the newest cached release for the package, and the UI labels which version it describes. Only `https` links are passed on; anything else becomes `null` |
+| Detail `updateHistory` | The newest 20 update jobs for that application                                                                                                                                                                                                                                                          |
+
+### Release metadata on request
+
+`POST /api/v1/applications/:id/release` fetches the latest release for the package and caches it.
+It is explicit rather than automatic: a page load must never wait on a third party.
+
+`{ release, reason }` where `release` is the cached shape or `null`, and `reason` is `ok`,
+`NO_SOURCE` (no repository is known for the package), `NOT_FOUND`, `RATE_LIMITED`, `UNAVAILABLE`
+or `BAD_RESPONSE`. The page turns each reason into one sentence and never shows a failure as a
+broken application page. An application without a package identity answers `422 UNSUPPORTED_PACKAGE`.
+
+The repository list is deliberately small (`apps/api/src/releases/registry.ts`): a WinGet package id
+is not a repository name, so each entry is a reviewed claim.
 
 ## 4. Security measures
 
