@@ -1,6 +1,7 @@
 'use client';
 
 import { Search } from 'lucide-react';
+import { DownloadCsv } from '@/components/DownloadCsv';
 import { useEffect, useRef, useState } from 'react';
 import {
   MATCH_STATUSES,
@@ -10,7 +11,7 @@ import {
   type UpdateStatus,
 } from '@updatepilot/shared';
 import { updateStatusLabel } from '@/components/StatusBadge';
-import { hasInventoryFilters } from '@/lib/inventory/search-params';
+import { hasInventoryFilters, toApiQueryString } from '@/lib/inventory/search-params';
 
 const MATCH_LABELS: Record<MatchStatus, string> = {
   MATCHED: 'Matched',
@@ -109,6 +110,12 @@ export function InventoryToolbar({ query, onChange }: Props) {
       </div>
 
       <div className="toolbar-spacer" />
+
+      <DownloadCsv
+        path={'/api/v1/exports/applications.csv?' + toApiQueryString(query)}
+        label="Export CSV"
+        fallbackName="updatepilot-inventory.csv"
+      />
 
       {hasInventoryFilters(query) ? (
         <div className="toolbar-actions">

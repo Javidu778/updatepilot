@@ -7,6 +7,7 @@ import { historyResponseSchema, type HistoryItem } from '@updatepilot/shared';
 import { EmptyState, ErrorState, LoadingState } from '@/components/DataStates';
 import { JobStateBadge } from '@/components/StatusBadge';
 import { useApiResource } from '@/lib/api/use-api-resource';
+import { DownloadCsv } from '@/components/DownloadCsv';
 import { useAuth } from '@/lib/auth/session';
 import { countOf, formatDate, formatRelativeTime } from '@/lib/format';
 
@@ -92,19 +93,27 @@ export function HistoryTimeline() {
   );
 
   const tabs = (
-    <div className="history-tabs" role="tablist" aria-label="What to show">
-      {TYPES.map((value) => (
-        <button
-          key={value}
-          type="button"
-          role="tab"
-          aria-selected={value === type}
-          className={value === type ? 'btn btn-primary' : 'btn btn-ghost'}
-          onClick={() => go(value, 1)}
-        >
-          {TYPE_LABELS[value]}
-        </button>
-      ))}
+    <div className="history-head">
+      <div className="history-tabs" role="tablist" aria-label="What to show">
+        {TYPES.map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={value === type}
+            className={value === type ? 'btn btn-primary' : 'btn btn-ghost'}
+            onClick={() => go(value, 1)}
+          >
+            {TYPE_LABELS[value]}
+          </button>
+        ))}
+      </div>
+
+      <DownloadCsv
+        path="/api/v1/exports/updates.csv"
+        label="Export updates CSV"
+        fallbackName="updatepilot-updates.csv"
+      />
     </div>
   );
 

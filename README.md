@@ -108,6 +108,7 @@ scripts/      Small repo tooling scripts
 | [`docs/updates.md`](docs/updates.md)               | Update workflow: preview, confirm, verify                              |
 | [`docs/insights.md`](docs/insights.md)             | History and Security insights                                          |
 | [`docs/deployment.md`](docs/deployment.md)         | Hosting: Vercel for the web, a container for the API, one agent per PC |
+| [`docs/exports.md`](docs/exports.md)               | CSV exports and the formula-injection rule                             |
 | [`docs/threat-model.md`](docs/threat-model.md)     | Threats and mitigations                                                |
 
 ## Design tokens
