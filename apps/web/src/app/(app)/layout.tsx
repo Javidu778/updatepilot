@@ -1,7 +1,6 @@
 import { AgentIndicator } from '@/components/AgentIndicator';
-import { ApiStatus } from '@/components/ApiStatus';
+import { AppSidebar } from '@/components/AppSidebar';
 import { RequireAuth } from '@/components/auth/RequireAuth';
-import { Sidebar } from '@/components/Sidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UserMenu } from '@/components/UserMenu';
 import { DevicesProvider } from '@/lib/devices/devices-context';
@@ -22,10 +21,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <ThemeToggle />
             <UserMenu />
           </header>
-          <nav className="sidebar" aria-label="Main">
-            <Sidebar />
-            <ApiStatus />
-          </nav>
+          <AppSidebar />
           <main id="main-content" tabIndex={-1} className="main">
             {children}
           </main>
