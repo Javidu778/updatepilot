@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { AuthProvider } from '@/lib/auth/session';
 import './globals.css';
 import './session.css';
+import './inventory.css';
 
 export const metadata: Metadata = {
   title: { default: 'UpdatePilot', template: '%s | UpdatePilot' },

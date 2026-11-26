@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   applicationDetailSchema,
   jobSchema,
@@ -15,6 +15,7 @@ import { JobStateBadge, UpdateStatusBadge } from '@/components/StatusBadge';
 import { ApiError } from '@/lib/api/errors';
 import { describeFailure } from '@/lib/api/describe-failure';
 import { useApiResource } from '@/lib/api/use-api-resource';
+import { useFocusTrap } from '@/lib/a11y/use-focus-trap';
 import { useAuth } from '@/lib/auth/session';
 import { countOf, formatDate, formatRelativeTime } from '@/lib/format';
 
@@ -146,6 +147,10 @@ function ConfirmUpdateDialog({
   const [preview, setPreview] = useState<UpdatePreview | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const confirmRef = useRef<HTMLButtonElement | null>(null);
+  // Keyboard focus stays inside the dialog and returns to the trigger when it closes.
+  useFocusTrap(dialogRef, true, confirmRef);
 
   // Load the preview as soon as the dialog opens: it is the server's statement of what will run.
   useEffect(() => {
@@ -298,7 +303,7 @@ function ConfirmUpdateDialog({
         <div className="dialog-actions">
           {phase === 'ready' ? (
             <>
-              <button type="button" className="btn btn-primary" onClick={confirm}>
+              <button type="button" className="btn btn-primary" ref={confirmRef} onClick={confirm}>
                 Confirm update
               </button>
               <button type="button" className="btn btn-ghost" onClick={onClose}>
