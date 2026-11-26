@@ -2,7 +2,7 @@
 
 Software update intelligence and management for Windows. A web dashboard and a local Windows agent discover installed applications, find available updates through WinGet, and run updates only after the user confirms them.
 
-> **Status: Week 3 complete (agent and scanning).** A Windows agent pairs with a one-time code, reads the machine with WinGet and reports real scan results, so the dashboard shows the software actually installed instead of seeded sample data. Running updates is **not built yet** — that is Week 4. See [Status](#status).
+> **Status: Week 4 and Week 5 pages complete.** A Windows agent pairs, scans with WinGet and reports real inventory; updates are previewed, confirmed with a single-use token, executed by the agent and verified by a rescan; History and Security insights are live pages. Outstanding: the real-machine update acceptance, email-free export, scheduled scans, and the Playwright pass. See [Status](#status).
 
 ## How it fits together
 
@@ -105,6 +105,8 @@ scripts/      Small repo tooling scripts
 | [`docs/auth.md`](docs/auth.md)                     | Sessions, cookies, CSRF, rate limits           |
 | [`docs/inventory-api.md`](docs/inventory-api.md)   | Inventory endpoints and their rules            |
 | [`docs/inventory-ui.md`](docs/inventory-ui.md)     | Dashboard and inventory screens                |
+| [`docs/updates.md`](docs/updates.md)               | Update workflow: preview, confirm, verify      |
+| [`docs/insights.md`](docs/insights.md)             | History and Security insights                  |
 | [`docs/threat-model.md`](docs/threat-model.md)     | Threats and mitigations                        |
 
 ## Design tokens
@@ -117,18 +119,19 @@ Every pull request runs `.github/workflows/ci.yml`: install, generate the Prisma
 
 ## Status
 
-| Area                                                         | State                           |
-| ------------------------------------------------------------ | ------------------------------- |
-| Repo, tooling, CI                                            | Done                            |
-| Scope, wireframes, design system, ERD, contracts             | Done (draft, under team review) |
-| Database schema, migration, sample data                      | Done                            |
-| API shell: config, errors, validation, health, docs          | Done                            |
-| Web shell: layout, navigation, themes, six placeholder pages | Done                            |
-| Authentication, inventory API and UI                         | Done                            |
-| Agent pairing, scanning, WinGet integration                  | Done (Week 3)                   |
-| Update workflow and verification                             | Week 4                          |
-| Security tests, accessibility audit, exports                 | Week 5                          |
-| Packaging, documentation, demo                               | Week 6                          |
+| Area                                                     | State                                              |
+| -------------------------------------------------------- | -------------------------------------------------- |
+| Repo, tooling, CI                                        | Done                                               |
+| Scope, wireframes, design system, ERD, contracts         | Done (draft, under team review)                    |
+| Database schema, migration, sample data                  | Done                                               |
+| API shell: config, errors, validation, health, docs      | Done                                               |
+| Web shell: layout, navigation, themes, all six sections  | Done                                               |
+| Authentication, inventory API and UI                     | Done                                               |
+| Agent pairing, scanning, WinGet integration              | Done (Week 3)                                      |
+| Update workflow: preview, confirm, execute, verify       | Done (Week 4), real-machine acceptance outstanding |
+| Web pages: Updates, History, Security insights, Settings | Done (Weeks 4-5)                                   |
+| Security tests, accessibility audit, exports             | Security page done; audit and exports outstanding  |
+| Packaging, documentation, demo                           | Documentation done; packaging and demo outstanding |
 
 Known gaps in the shell, planned for later weeks: mobile navigation is a scrolling bar (a drawer comes in the polish pass), fonts use the system stack until Inter is added, and tablet layout has no collapsed sidebar yet.
 
