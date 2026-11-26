@@ -90,6 +90,24 @@ The agent reports facts: exit code, restart flag, the version it found on rescan
 `SUCCEEDED` is never taken from an exit code alone. A verified update also corrects the inventory row;
 the next scan remains the source of truth.
 
+### Why verification waits, and which command it uses
+
+The installer returns **before** Windows lists the new version. On the first acceptance runs, Notepad++,
+GitHub CLI, GitHub Desktop and Cursor were all installed successfully and all four were recorded as
+`VERIFICATION_FAILED`, because the rescan read the version too early.
+
+Two fixes came out of that:
+
+1. The agent polls until the reported version matches the target (about a minute), then reports the last
+   version it saw. A version that is present but wrong is reported at once — waiting cannot fix it.
+2. Verification reads the **unfiltered** `winget list`. With `--id … --exact`, WinGet collapses its
+   columns to single spaces (`Cursor (User) Anysphere.Cursor 3.31.15 winget`), which the parser cannot
+   split safely, so it silently found nothing for every package. The full table is padded and is what
+   every scan already used.
+
+A later run (Binance 1.54.19 → 2.1.0) recorded `SUCCEEDED` / `VERIFIED` in 2m40s, with the inventory row
+and the audit event agreeing.
+
 ## 7. Limits
 
 - One update per application at a time; an update never runs while another operation is in flight.

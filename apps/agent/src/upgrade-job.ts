@@ -3,6 +3,7 @@ import {
   buildUpgradeArgs,
   isRestartExitCode,
   readInstalledVersion,
+  waitForTargetVersion,
   runUpgrade,
   sanitizeVersion,
   summarizeFailure,
@@ -41,8 +42,10 @@ export async function runUpgradeJob(api: AgentApi, job: UpgradeJob): Promise<voi
       // The job may already have been finalised elsewhere; the result below still tells the truth.
       if (!(error instanceof AgentHttpError && error.status === 409)) throw error;
     }
+    // The installer returns before Windows lists the new version, so wait for the target version
+    // instead of reading once. Two acceptance runs proved a single read reports failure on success.
     installedVersionAfter = sanitizeVersion(
-      await readInstalledVersion(job.packageId).catch(() => null),
+      await waitForTargetVersion(() => readInstalledVersion(job.packageId), job.targetVersion),
     );
   }
 

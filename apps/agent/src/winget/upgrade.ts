@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import {
+  isSameVersion,
   packageIdSchema,
   packageSourceSchema,
   targetVersionSchema,
@@ -94,30 +95,66 @@ export function runUpgrade(
   });
 }
 
+/**
+ * Reads a version, retrying while it is not there yet.
+ *
+ * A successful installer returns before Windows has finished registering the new version, so an
+ * immediate rescan can find nothing at all. The first real acceptance run hit exactly this: exit
+ * code 0, Notepad++ went from 8.9.7 to 8.9.9.1, and the rescan read nothing a second later.
+ *
+ * A missing version is retried; a version that is present but wrong is returned at once, because
+ * waiting cannot turn the wrong version into the right one.
+ */
+export async function readVersionWithRetry(
+  read: () => Promise<string | null>,
+  options: { attempts?: number; delayMs?: number } = {},
+): Promise<string | null> {
+  const attempts = Math.max(1, options.attempts ?? 5);
+  const delayMs = Math.max(0, options.delayMs ?? 2000);
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const version = await read().catch(() => null);
+    if (version) return version;
+    if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return null;
+}
+
 /** The version printed on the machine right now, or null when it cannot be read. */
 export async function readInstalledVersion(
   packageId: string,
   timeoutMs = 60_000,
 ): Promise<string | null> {
   const id = packageIdSchema.parse(packageId);
-  const output = await new Promise<string>((resolve, reject) => {
-    execFile(
-      'winget.exe',
-      ['list', '--id', id, '--exact', '--accept-source-agreements'],
-      { timeout: timeoutMs, windowsHide: true, maxBuffer: 20 * 1024 * 1024, encoding: 'utf8' },
-      (error, stdout) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(stdout ?? '');
-      },
-    );
-  });
 
-  const rows = parseWingetList(output);
-  const row = rows.find((candidate) => candidate.packageId?.toLowerCase() === id.toLowerCase());
-  return row?.version ?? null;
+  const readOnce = async (): Promise<string | null> => {
+    // The FULL list, not `--id ... --exact`.
+    //
+    // Filtered output collapses its columns to single spaces
+    // ("Cursor (User) Anysphere.Cursor 3.31.15 winget"), which this parser cannot split safely,
+    // while the unfiltered table is padded and parses correctly - it is what every scan already
+    // uses. Three real acceptance runs failed to verify until this was found.
+    const output = await new Promise<string>((resolve, reject) => {
+      execFile(
+        'winget.exe',
+        ['list', '--accept-source-agreements'],
+        { timeout: timeoutMs, windowsHide: true, maxBuffer: 20 * 1024 * 1024, encoding: 'utf8' },
+        (error, stdout) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve(stdout ?? '');
+        },
+      );
+    });
+
+    const rows = parseWingetList(output);
+    const row = rows.find((candidate) => candidate.packageId?.toLowerCase() === id.toLowerCase());
+    return row?.version ?? null;
+  };
+
+  return readVersionWithRetry(readOnce);
 }
 
 /** A version string the shared schema will accept, or null. */
@@ -142,4 +179,33 @@ export function summarizeFailure(run: UpgradeRun): string | null {
     .trim();
   if (cleaned === '') return `WinGet exited with code ${run.exitCode}.`;
   return cleaned.slice(0, 1000);
+}
+
+/**
+ * Waits until the machine reports the version we were asked to install.
+ *
+ * Two real acceptance runs showed why "read once, then decide" is wrong: Notepad++ and GitHub CLI
+ * were both installed correctly, yet winget took 20-40 seconds to list the new version. Reading
+ * once produced VERIFICATION_FAILED for a successful update.
+ *
+ * So the agent polls until the reported version matches the target, and gives up after a deadline.
+ * If the deadline passes, it reports the last version it did see (or null), and the server says why.
+ */
+export async function waitForTargetVersion(
+  read: () => Promise<string | null>,
+  targetVersion: string,
+  options: { attempts?: number; delayMs?: number } = {},
+): Promise<string | null> {
+  const attempts = Math.max(1, options.attempts ?? 12);
+  const delayMs = Math.max(0, options.delayMs ?? 5000);
+  let lastSeen: string | null = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const version = await read().catch(() => null);
+    if (version) lastSeen = version;
+    if (version && isSameVersion(version, targetVersion) === true) return version;
+    if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  return lastSeen;
 }
