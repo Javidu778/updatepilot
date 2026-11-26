@@ -41,6 +41,12 @@ export function createApp({
   const app = express();
   app.disable('x-powered-by');
 
+  // Behind a host proxy (Render, Railway, Fly, a Vercel rewrite) the socket address is the proxy's.
+  // Trusting exactly one hop makes req.ip the real client, which is what the rate limiters key on,
+  // and lets express see the request as secure so the session cookie is still sent.
+  // Only in production: in development a client could otherwise spoof X-Forwarded-For.
+  if (config.nodeEnv === 'production') app.set('trust proxy', 1);
+
   // Request id and structured request logging. The id is generated here, never trusted from the client.
   app.use(
     pinoHttp({
