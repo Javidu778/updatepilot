@@ -92,22 +92,23 @@ scripts/      Small repo tooling scripts
 
 ## Documentation
 
-| Document                                           | Contents                                       |
-| -------------------------------------------------- | ---------------------------------------------- |
-| [`docs/wireframes.md`](docs/wireframes.md)         | Wireframes for all six sections                |
-| [`docs/design-system.md`](docs/design-system.md)   | Colors, type, components, accessibility        |
-| [`docs/erd.md`](docs/erd.md)                       | Database design                                |
-| [`docs/openapi.yaml`](docs/openapi.yaml)           | API contract (also served at `/api/docs`)      |
-| [`docs/job-states.md`](docs/job-states.md)         | Job state machine                              |
-| [`docs/agent-protocol.md`](docs/agent-protocol.md) | How the agent talks to the API                 |
-| [`docs/agent.md`](docs/agent.md)                   | Agent setup, security, limits, troubleshooting |
-| [`docs/scans.md`](docs/scans.md)                   | Scans: endpoints, appKey rule, statuses        |
-| [`docs/auth.md`](docs/auth.md)                     | Sessions, cookies, CSRF, rate limits           |
-| [`docs/inventory-api.md`](docs/inventory-api.md)   | Inventory endpoints and their rules            |
-| [`docs/inventory-ui.md`](docs/inventory-ui.md)     | Dashboard and inventory screens                |
-| [`docs/updates.md`](docs/updates.md)               | Update workflow: preview, confirm, verify      |
-| [`docs/insights.md`](docs/insights.md)             | History and Security insights                  |
-| [`docs/threat-model.md`](docs/threat-model.md)     | Threats and mitigations                        |
+| Document                                           | Contents                                                               |
+| -------------------------------------------------- | ---------------------------------------------------------------------- |
+| [`docs/wireframes.md`](docs/wireframes.md)         | Wireframes for all six sections                                        |
+| [`docs/design-system.md`](docs/design-system.md)   | Colors, type, components, accessibility                                |
+| [`docs/erd.md`](docs/erd.md)                       | Database design                                                        |
+| [`docs/openapi.yaml`](docs/openapi.yaml)           | API contract (also served at `/api/docs`)                              |
+| [`docs/job-states.md`](docs/job-states.md)         | Job state machine                                                      |
+| [`docs/agent-protocol.md`](docs/agent-protocol.md) | How the agent talks to the API                                         |
+| [`docs/agent.md`](docs/agent.md)                   | Agent setup, security, limits, troubleshooting                         |
+| [`docs/scans.md`](docs/scans.md)                   | Scans: endpoints, appKey rule, statuses                                |
+| [`docs/auth.md`](docs/auth.md)                     | Sessions, cookies, CSRF, rate limits                                   |
+| [`docs/inventory-api.md`](docs/inventory-api.md)   | Inventory endpoints and their rules                                    |
+| [`docs/inventory-ui.md`](docs/inventory-ui.md)     | Dashboard and inventory screens                                        |
+| [`docs/updates.md`](docs/updates.md)               | Update workflow: preview, confirm, verify                              |
+| [`docs/insights.md`](docs/insights.md)             | History and Security insights                                          |
+| [`docs/deployment.md`](docs/deployment.md)         | Hosting: Vercel for the web, a container for the API, one agent per PC |
+| [`docs/threat-model.md`](docs/threat-model.md)     | Threats and mitigations                                                |
 
 ## Design tokens
 
