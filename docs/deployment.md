@@ -38,9 +38,28 @@ it on same-site requests only. So:
 | Layout                                                                         | Works? | Why                                                                                          |
 | ------------------------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------- |
 | Web and API on subdomains of one domain: `app.example.com` + `api.example.com` | ✅     | Same registrable domain, so it counts as same-site                                           |
-| API proxied under the web domain (Vercel rewrite: `/api/*` → API host)         | ✅     | First-party cookies, simplest to reason about                                                |
-| Web on `x.vercel.app`, API on `y.onrender.com`                                 | ❌     | Different sites: the login succeeds and the next request is anonymous                        |
+| API proxied by the web app (`UPDATEPILOT_API_PROXY`, see §5a)                  | ✅     | First-party cookies, no domain needed                                                        |
+| Web on `x.vercel.app`, API on `y.onrender.com` called directly                 | ❌     | Different sites: the login succeeds and the next request is anonymous                        |
 | `SameSite=None` to force cross-site                                            | ⚠️     | Needs HTTPS and still fails in browsers that block third-party cookies. Weakens CSRF defence |
+
+### 5a. The same-origin proxy, for when you have no domain
+
+`apps/web/src/app/api/[...path]/route.ts` forwards `/api/*` to the API and copies the response back,
+including `Set-Cookie`. A browser on the web origin therefore holds a first-party cookie, and the
+`SameSite=Lax` rule is satisfied without buying a domain.
+
+| Variable                | Where                            | Value                                                             |
+| ----------------------- | -------------------------------- | ----------------------------------------------------------------- |
+| `UPDATEPILOT_API_PROXY` | Web host, **not** `NEXT_PUBLIC_` | The API base URL, e.g. `https://updatepilot-api.onrender.com`     |
+| `NEXT_PUBLIC_API_URL`   | Web host                         | **Unset.** With no value, a production build calls its own origin |
+
+A Route Handler rather than an external `rewrite` on purpose: forwarding `Set-Cookie` is the entire point,
+and doing it explicitly makes it testable instead of dependent on a host's rewrite behaviour. It was
+verified locally — logging in through the proxy returned the session cookie on the web origin, and
+`/api/v1/auth/me` and `/api/v1/devices` answered 200 with the right user.
+
+If `UPDATEPILOT_API_PROXY` is unset, the route answers `503 PROXY_NOT_CONFIGURED` rather than quietly
+calling the wrong place.
 
 `WEB_ORIGIN` must equal the web app's exact origin (scheme + host + port). CORS allows credentials for that
 origin only.
