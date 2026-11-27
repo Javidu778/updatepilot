@@ -97,6 +97,17 @@ its own origin and cookies stay first-party.
 
 The API already sets `trust proxy` in production, so the rate limiters key on the real client address.
 
+### Why `tsx` and `prisma` are production dependencies
+
+The first Render deployment built successfully and then died with `sh: 1: tsx: not found`. The cause:
+`NODE_ENV=production` makes `npm ci` skip devDependencies, and the API's start command runs TypeScript
+directly (`tsx src/server.ts`), while `npm run db:deploy` needs the Prisma CLI. Both therefore sit in
+`dependencies`, not `devDependencies`. The cost is a slightly larger image; the alternative is compiling
+to JavaScript at build time and shipping `node dist/server.js`, which would be the next step if image
+size mattered.
+
+The same trap applies to any host that sets `NODE_ENV=production` before installing.
+
 ## 7. Adding another PC (this is what multi-machine means)
 
 Nothing about the web app changes. For every machine you want to manage:
