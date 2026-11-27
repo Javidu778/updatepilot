@@ -84,7 +84,7 @@ describe('inventory browser', () => {
     renderBrowser({ 'GET /api/v1/applications': page([]) });
 
     expect(await screen.findByText('No applications yet')).toBeTruthy();
-    expect(screen.getByText(/Pair an agent and run a scan/)).toBeTruthy();
+    expect(screen.getByText(/Pair a computer in Settings and agent/)).toBeTruthy();
   });
 
   it('offers a reset when filters match nothing', async () => {

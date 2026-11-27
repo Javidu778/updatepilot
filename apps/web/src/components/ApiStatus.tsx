@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { healthResponseSchema } from '@updatepilot/shared';
+import { apiUrl } from '@/lib/api/config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 const POLL_MS = 30_000;
 
 type State = { status: 'checking' } | { status: 'online'; version: string } | { status: 'offline' };
@@ -17,7 +17,7 @@ export function ApiStatus() {
 
     async function check() {
       try {
-        const res = await fetch(`${API_URL}/api/v1/health`, {
+        const res = await fetch(apiUrl('/api/v1/health'), {
           signal: controller.signal,
           cache: 'no-store',
         });

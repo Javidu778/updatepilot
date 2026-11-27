@@ -94,7 +94,7 @@ export function InventoryBrowser() {
       ) : (
         <EmptyState
           title="No applications yet"
-          body="Pair an agent and run a scan to fill the inventory. Pairing arrives in Week 3."
+          body="Pair a computer in Settings and agent, then run a scan. The inventory lists what is installed on it."
         />
       )}
     </>
