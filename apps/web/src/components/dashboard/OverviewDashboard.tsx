@@ -58,8 +58,8 @@ export function OverviewDashboard() {
         <div className="banner banner-info" role="status">
           <Info aria-hidden="true" size={16} />
           <p>
-            No agent is paired yet. Pairing and real scans arrive in Week 3. Until then the
-            inventory stays empty unless sample data is loaded.
+            No computer is paired yet. Open Settings and agent to pair this PC, then run a scan.
+            Until then the inventory stays empty unless sample data is loaded.
           </p>
         </div>
       ) : null}
